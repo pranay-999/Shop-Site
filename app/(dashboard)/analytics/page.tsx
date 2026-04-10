@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, TrendingDown, AlertTriangle, Package, ShoppingCart } from "lucide-react"
-import { NavigationHeader } from "@/components/navigation-header"
+import { NavigationHeader } from "@/components/layout/navigation-header"
 
 export default function AnalyticsPage() {
   // Mock analytics data

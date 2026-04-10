@@ -12,7 +12,7 @@ import { Search, Eye, Printer, Edit, Trash2, Download } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { NavigationHeader } from "@/components/navigation-header"
+import { NavigationHeader } from "@/components/layout/navigation-header"
 
 export default function BillsPage() {
   const [exportType, setExportType] = useState<string>("")
