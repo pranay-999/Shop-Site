@@ -8,9 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Edit, Trash2, Package } from "lucide-react"
-import { NavigationHeader } from "@/components/navigation-header"
+import { NavigationHeader } from "@/components/layout/navigation-header"
 import { getStocks, deleteStock, searchStocks } from "@/lib/api"
-import type { Stock } from "@/types"
+import type { Stock } from "@/lib/types"
 
 export default function StocksPage() {
   const [stocks, setStocks] = useState<Stock[]>([])

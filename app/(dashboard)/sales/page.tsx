@@ -12,7 +12,7 @@ import { Plus, Trash2, Edit, Eye, AlertCircle, Printer, Search } from "lucide-re
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { NavigationHeader } from "@/components/navigation-header"
+import { NavigationHeader } from "@/components/layout/navigation-header"
 import { getStocks, searchStocks, createBill, checkBillNumberExists } from "@/lib/api"
 import { useCategory } from "@/context/CategoryContext"
 import type { Stock, BillItem } from "@/lib/types"

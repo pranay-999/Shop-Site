@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Plus, Trash2, Edit, AlertCircle, Save, Search } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { NavigationHeader } from "@/components/navigation-header"
+import { NavigationHeader } from "@/components/layout/navigation-header"
 
 interface StockItem {
   id: string
