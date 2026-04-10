@@ -1,7 +1,7 @@
 "use client"
 
 import { useCategory } from "@/context/CategoryContext"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select"
 
 export function CategorySelector() {
   const { selectedCategory, categories, setSelectedCategory } = useCategory()

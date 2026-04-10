@@ -15,8 +15,8 @@ import {
   AlertTriangle,
   Edit,
 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+import { Input } from "@/app/components/ui/input"
+import { Badge } from "@/app/components/ui/badge"
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -136,7 +136,7 @@ export default function HomePage() {
                   <ShoppingCart className="h-5 w-5 text-[hsl(142,76%,36%)]" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Sales</p>
+                  <p className="text-sm text-muted-foreground">Today&apos;s Sales</p>
                   <p className="text-2xl font-bold">{stats.todaySales}</p>
                 </div>
               </div>
