@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: tiles-sanitary-backend
+  
+  datasource:
+    url: jdbc:postgresql://db.recnnsniwonmtoutfyqt.supabase.co:5432/postgres?sslmode=require
+    username: postgres
+    password: ylELgyuDAQjKV8sr
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  jackson:
+    serialization:
+      indent-output: true
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+logging:
+  level:
+    root: INFO
+    com.inventory: DEBUG
