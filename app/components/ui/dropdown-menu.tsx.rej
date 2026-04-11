@@ -1,0 +1,35 @@
+diff a/app/components/ui/dropdown-menu.tsx b/app/components/ui/dropdown-menu.tsx	(rejected hunks)
+@@ -1,32 +1,32 @@
+ 'use client'
+ 
+ import * as React from 'react'
+ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
+ 
+-import { cn } from '@/lib/utils'
++import { cn } from '@/app/lib/utils'
+ 
+ function DropdownMenu({
+   ...props
+ }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+ }
+ 
+ function DropdownMenuPortal({
+   ...props
+ }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
+   return (
+     <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
+   )
+ }
+ 
+ function DropdownMenuTrigger({
+   ...props
+ }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+   return (
+     <DropdownMenuPrimitive.Trigger
+       data-slot="dropdown-menu-trigger"
+       {...props}
+     />
+   )
+ }
