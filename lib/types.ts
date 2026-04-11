@@ -13,6 +13,8 @@ export type Stock = {
 export type BillItem = {
   stockId: number
   designName: string
+  size: string
+  type: string
   noOfBoxes: number
   pricePerBox: number
   totalAmount: number
