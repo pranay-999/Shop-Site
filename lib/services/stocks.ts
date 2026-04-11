@@ -1,4 +1,4 @@
-import { supabaseRequest } from "@/lib/supabase"
+import { requireSupabase } from "@/lib/supabase"
 import type { Stock } from "@/lib/types"
 
 type StockRow = {
@@ -13,8 +13,6 @@ type StockRow = {
   updated_at: string
 }
 
-const stockSelect = "id,design_name,size,type,total_boxes,price_per_box,category_id,created_at,updated_at"
-
 const mapStock = (row: StockRow): Stock => ({
   id: row.id,
   designName: row.design_name,
@@ -28,20 +26,26 @@ const mapStock = (row: StockRow): Stock => ({
 })
 
 export async function getStocks(): Promise<Stock[]> {
-  const rows = await supabaseRequest<StockRow[]>(`stocks?select=${stockSelect}&order=id.asc`)
-  return (rows ?? []).map(mapStock)
+  const { data, error } = await requireSupabase()
+    .from("stocks")
+    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
+    .order("id", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map(mapStock)
 }
 
 export async function searchStocks(query: string): Promise<Stock[]> {
   if (!query.trim()) return getStocks()
 
-  const term = query.trim().replace(/[,()]/g, "")
-  const filter = encodeURIComponent(`design_name.ilike.%${term}%,size.ilike.%${term}%,type.ilike.%${term}%`)
-  const rows = await supabaseRequest<StockRow[]>(
-    `stocks?select=${stockSelect}&or=(${filter})&order=id.asc`,
-  )
+  const { data, error } = await requireSupabase()
+    .from("stocks")
+    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
+    .or(`design_name.ilike.%${query}%,size.ilike.%${query}%,type.ilike.%${query}%`)
+    .order("id", { ascending: true })
 
-  return (rows ?? []).map(mapStock)
+  if (error) throw error
+  return (data ?? []).map(mapStock)
 }
 
 export async function createStock(stockData: {
@@ -52,37 +56,32 @@ export async function createStock(stockData: {
   pricePerBox: number
   categoryId: number
 }) {
-  try {
-    const rows = await supabaseRequest<StockRow[]>(`stocks?select=${stockSelect}`, {
-      method: "POST",
-      headers: {
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify({
-        design_name: stockData.designName,
-        type: stockData.type,
-        size: stockData.size,
-        total_boxes: stockData.totalBoxes,
-        price_per_box: stockData.pricePerBox,
-        category_id: stockData.categoryId,
-      }),
+  const { data, error } = await requireSupabase()
+    .from("stocks")
+    .insert({
+      design_name: stockData.designName,
+      type: stockData.type,
+      size: stockData.size,
+      total_boxes: stockData.totalBoxes,
+      price_per_box: stockData.pricePerBox,
+      category_id: stockData.categoryId,
     })
+    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
+    .single()
 
-    if (!rows?.[0]) throw new Error("Supabase returned empty stock insert response")
-    return mapStock(rows[0])
-  } catch (error) {
-    const message = error instanceof Error ? error.message.toLowerCase() : ""
-    if (message.includes("foreign key") && message.includes("category_id")) {
+  if (error) {
+    const errorMessage = error.message.toLowerCase()
+    if (errorMessage.includes("foreign key") && errorMessage.includes("category_id")) {
       throw new Error("Invalid category: make sure product_categories has this id and FK is configured correctly.")
     }
     throw error
   }
+  return mapStock(data as StockRow)
 }
 
 export async function deleteStock(id: number) {
-  await supabaseRequest<null>(`stocks?id=eq.${id}`, {
-    method: "DELETE",
-  })
+  const { error } = await requireSupabase().from("stocks").delete().eq("id", id)
+  if (error) throw error
 }
 
 export async function uploadStockExcel(file: File, categoryId: number) {
@@ -121,10 +120,8 @@ export async function uploadStockExcel(file: File, categoryId: number) {
     }
   })
 
-  await supabaseRequest<null>("stocks", {
-    method: "POST",
-    body: JSON.stringify(inserts),
-  })
+  const { error } = await requireSupabase().from("stocks").insert(inserts)
+  if (error) throw error
 
   return { inserted: inserts.length }
 }

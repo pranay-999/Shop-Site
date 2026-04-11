@@ -1,11 +1,14 @@
-import { supabaseRequest } from "@/lib/supabase"
+import { requireSupabase } from "@/lib/supabase"
 import type { BillItem } from "@/lib/types"
 
 export async function checkBillNumberExists(billNumber: string) {
-  const rows = await supabaseRequest<Array<{ id: number }>>(
-    `bills?select=id&bill_number=eq.${encodeURIComponent(billNumber)}&limit=1`,
-  )
-  return { exists: (rows?.length ?? 0) > 0 }
+  const { count, error } = await requireSupabase()
+    .from("bills")
+    .select("id", { count: "exact", head: true })
+    .eq("bill_number", billNumber)
+
+  if (error) throw error
+  return { exists: (count ?? 0) > 0 }
 }
 
 export async function createBill(billData: {
@@ -20,12 +23,9 @@ export async function createBill(billData: {
   discountAmount: number
   totalAmount: number
 }) {
-  const bills = await supabaseRequest<Array<{ id: number }>>("bills?select=id", {
-    method: "POST",
-    headers: {
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify({
+  const { data: bill, error: billError } = await requireSupabase()
+    .from("bills")
+    .insert({
       bill_number: billData.billNumber,
       customer_name: billData.customerName,
       phone_number: billData.customerPhone,
@@ -35,13 +35,11 @@ export async function createBill(billData: {
       gst_type: billData.gstType ?? "EXCLUSIVE",
       discount: billData.discountAmount,
       total_amount: billData.totalAmount,
-    }),
-  })
+    })
+    .select("id")
+    .single()
 
-  const bill = bills?.[0]
-  if (!bill) {
-    throw new Error("Supabase returned empty bill insert response")
-  }
+  if (billError) throw billError
 
   if (billData.items.length > 0) {
     const payloadWithStock = billData.items.map((item) => ({
@@ -55,16 +53,15 @@ export async function createBill(billData: {
       total_price: item.totalAmount,
     }))
 
-    try {
-      await supabaseRequest<null>("bill_items", {
-        method: "POST",
-        body: JSON.stringify(payloadWithStock),
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message.toLowerCase() : ""
+    const insertWithStock = await requireSupabase().from("bill_items").insert(payloadWithStock)
+
+    if (insertWithStock.error) {
+      const message = insertWithStock.error.message.toLowerCase()
       const stockColumnMissing = message.includes("stock_id") && message.includes("column")
 
-      if (!stockColumnMissing) throw error
+      if (!stockColumnMissing) {
+        throw insertWithStock.error
+      }
 
       const payloadLegacy = billData.items.map((item) => ({
         bill_id: bill.id,
@@ -76,10 +73,8 @@ export async function createBill(billData: {
         total_price: item.totalAmount,
       }))
 
-      await supabaseRequest<null>("bill_items", {
-        method: "POST",
-        body: JSON.stringify(payloadLegacy),
-      })
+      const legacyInsert = await requireSupabase().from("bill_items").insert(payloadLegacy)
+      if (legacyInsert.error) throw legacyInsert.error
     }
   }
 
