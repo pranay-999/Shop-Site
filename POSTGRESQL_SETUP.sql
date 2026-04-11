@@ -64,13 +64,15 @@ CREATE TABLE bills (
 CREATE TABLE bill_items (
     id BIGSERIAL PRIMARY KEY,
     bill_id BIGINT NOT NULL,
+    stock_id BIGINT NULL,
     design_name VARCHAR(255) NOT NULL,
     size VARCHAR(100) NOT NULL,
     type VARCHAR(100) NOT NULL,
     quantity_boxes INTEGER NOT NULL,
     price_per_box DOUBLE PRECISION NOT NULL,
     total_price DOUBLE PRECISION NOT NULL,
-    FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
+    FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE,
+    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE SET NULL
 );
 
 -- ============================================
@@ -85,6 +87,10 @@ CREATE INDEX idx_bills_customer_name ON bills(customer_name);
 CREATE INDEX idx_bills_phone_number ON bills(phone_number);
 CREATE INDEX idx_bills_created_at ON bills(created_at);
 CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id);
+CREATE INDEX idx_bill_items_stock_id ON bill_items(stock_id);
+
+-- Optional compatibility view if your app expects `categories` table name
+-- CREATE VIEW categories AS SELECT * FROM product_categories;
 
 -- ============================================
 -- 6. INSERT DEFAULT CATEGORIES
@@ -126,16 +132,16 @@ INSERT INTO bills (bill_number, customer_name, phone_number, subtotal, gst_amoun
 -- ============================================
 -- 9. INSERT SAMPLE BILL ITEMS
 -- ============================================
-INSERT INTO bill_items (bill_id, design_name, size, type, quantity_boxes, price_per_box, total_price) VALUES
-(1, 'Marble Tile A', '12x12', 'Ceramic', 10, 250, 2500),
-(1, 'Sanitary Faucet S1', 'Standard', 'Brass', 2, 1200, 2400),
-(1, 'Shower Head Spray', 'Standard', 'Stainless Steel', 1, 100, 100),
-(2, 'Granite Tile B', '18x18', 'Natural Stone', 20, 450, 9000),
-(2, 'Porcelain White', '24x24', 'Porcelain', 5, 350, 1750),
-(2, 'Bathtub Deluxe', 'Large', 'Acrylic', 1, 1250, 1250),
-(3, 'Toilet Seat Premium', 'Standard', 'Ceramic', 5, 350, 1750),
-(3, 'Sink Basin Classic', 'Medium', 'Ceramic', 3, 850, 2550),
-(3, 'Shower Head Spray', 'Standard', 'Stainless Steel', 4, 850, 3400);
+INSERT INTO bill_items (bill_id, stock_id, design_name, size, type, quantity_boxes, price_per_box, total_price) VALUES
+(1, 1, 'Marble Tile A', '12x12', 'Ceramic', 10, 250, 2500),
+(1, 7, 'Sanitary Faucet S1', 'Standard', 'Brass', 2, 1200, 2400),
+(1, 8, 'Shower Head Spray', 'Standard', 'Stainless Steel', 1, 100, 100),
+(2, 2, 'Granite Tile B', '18x18', 'Natural Stone', 20, 450, 9000),
+(2, 3, 'Porcelain White', '24x24', 'Porcelain', 5, 350, 1750),
+(2, 4, 'Bathtub Deluxe', 'Large', 'Acrylic', 1, 1250, 1250),
+(3, 5, 'Toilet Seat Premium', 'Standard', 'Ceramic', 5, 350, 1750),
+(3, 6, 'Sink Basin Classic', 'Medium', 'Ceramic', 3, 850, 2550),
+(3, 8, 'Shower Head Spray', 'Standard', 'Stainless Steel', 4, 850, 3400);
 
 -- ============================================
 -- 10. VERIFY TABLES CREATED

@@ -12,7 +12,7 @@ import { Upload, FileSpreadsheet, Plus, Download, CheckCircle, AlertCircle } fro
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NavigationHeader } from "@/components/layout/navigation-header"
 import { useCategory } from "@/context/CategoryContext"
-import { createStock, uploadStockExcel } from "@/lib/api"
+import { createStock, uploadStockExcel } from "@/lib/services/stocks"
 
 export default function AddStockPage() {
   const router = useRouter()

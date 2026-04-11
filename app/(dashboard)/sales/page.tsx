@@ -13,7 +13,8 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NavigationHeader } from "@/components/layout/navigation-header"
-import { getStocks, searchStocks, createBill, checkBillNumberExists } from "@/lib/api"
+import { getStocks } from "@/lib/services/stocks"
+import { createBill, checkBillNumberExists } from "@/lib/services/bills"
 import { useCategory } from "@/context/CategoryContext"
 import type { Stock, BillItem } from "@/lib/types"
 
@@ -52,7 +53,7 @@ export default function NewSalePage() {
   const [oldBillNumber, setOldBillNumber] = useState("")
   const [oldBillData, setOldBillData] = useState<any>(null)
 
-  // Load stocks from Java backend - filtered by category
+  // Load stocks from Supabase - filtered by category
   useEffect(() => {
     const loadStocks = async () => {
       try {
@@ -62,7 +63,7 @@ export default function NewSalePage() {
         setStocks(filteredData)
       } catch (error) {
         console.error("Failed to load stocks:", error)
-        alert("Failed to load stocks. Make sure Java backend is running on port 8080")
+        alert("Failed to load stocks from Supabase")
       } finally {
         setLoading(false)
       }
@@ -216,6 +217,8 @@ export default function NewSalePage() {
       const billItems: BillItem[] = cartItems.map((item) => ({
         stockId: item.stockId,
         designName: item.design_name,
+        size: item.size,
+        type: item.type,
         noOfBoxes: item.boxes,
         pricePerBox: item.price,
         totalAmount: item.total,
