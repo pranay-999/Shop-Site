@@ -23,14 +23,16 @@ export async function supabaseRequest<T>(
 ): Promise<T> {
   const { url, anonKey } = getSupabaseConfig()
 
+  const headers = new Headers(init.headers)
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+  headers.set("apikey", anonKey)
+  headers.set("Authorization", `Bearer ${anonKey}`)
+
   const response = await fetch(`${url}/rest/v1/${path}`, {
     ...init,
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
+    headers,
   })
 
   if (!response.ok) {

@@ -35,7 +35,7 @@ export async function getStocks(): Promise<Stock[]> {
 export async function searchStocks(query: string): Promise<Stock[]> {
   if (!query.trim()) return getStocks()
 
-  const term = query.trim().replace(/,/g, "")
+  const term = query.trim().replace(/[,()]/g, "")
   const filter = encodeURIComponent(`design_name.ilike.%${term}%,size.ilike.%${term}%,type.ilike.%${term}%`)
   const rows = await supabaseRequest<StockRow[]>(
     `stocks?select=${stockSelect}&or=(${filter})&order=id.asc`,
