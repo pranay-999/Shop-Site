@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Edit, Trash2, Package } from "lucide-react"
 import { NavigationHeader } from "@/components/layout/navigation-header"
-import { getStocks, deleteStock, searchStocks } from "@/lib/api"
+import { getStocks, deleteStock, searchStocks } from "@/lib/services/stocks"
 import type { Stock } from "@/lib/types"
 
 export default function StocksPage() {
@@ -18,7 +18,7 @@ export default function StocksPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Load stocks from Java backend
+  // Load stocks from Supabase
   useEffect(() => {
     const loadStocks = async () => {
       try {
@@ -27,7 +27,7 @@ export default function StocksPage() {
         setFilteredStocks(data)
       } catch (error) {
         console.error("Failed to load stocks:", error)
-        alert("Failed to load stocks. Make sure Java backend is running on port 8080")
+        alert("Failed to load stocks from Supabase")
       } finally {
         setLoading(false)
       }

@@ -1,236 +1,190 @@
 package com.inventory.service;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.inventory.dto.BillDTO;
 import com.inventory.dto.BillItemDTO;
-import com.inventory.model.Bill;
-import com.inventory.model.BillItem;
-import com.inventory.repository.BillRepository;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@Transactional
 public class BillService {
-    
-    private final BillRepository billRepository;
-    
-    public BillService(BillRepository billRepository) {
-        this.billRepository = billRepository;
-    }
-    
+
+    private final Map<Long, BillDTO> billsById = new ConcurrentHashMap<>();
+    private final Map<String, Long> billNumberIndex = new ConcurrentHashMap<>();
+    private final AtomicLong idGenerator = new AtomicLong(1);
+
     public List<BillDTO> getAllBills() {
-        return billRepository.findAll()
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        return billsById.values().stream()
+                .sorted(Comparator.comparing(BillDTO::getId))
+                .toList();
     }
-    
-    @SuppressWarnings("null")
+
     public BillDTO getBillById(Long id) {
-        Bill bill = billRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Bill not found with id: " + id));
-        return convertToDTO(bill);
+        BillDTO bill = billsById.get(id);
+        if (bill == null) {
+            throw new RuntimeException("Bill not found with id: " + id);
+        }
+        return bill;
     }
-    
+
     public BillDTO getBillByBillNumber(String billNumber) {
-        Bill bill = billRepository.findByBillNumber(billNumber)
-                .orElseThrow(() -> new RuntimeException("Bill not found with number: " + billNumber));
-        return convertToDTO(bill);
+        Long id = billNumberIndex.get(billNumber);
+        if (id == null) {
+            throw new RuntimeException("Bill not found with number: " + billNumber);
+        }
+        return getBillById(id);
     }
-    
+
     public List<BillDTO> searchBills(String searchTerm) {
-        return billRepository.searchBills(searchTerm)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        String q = searchTerm.toLowerCase();
+        return billsById.values().stream()
+                .filter(bill -> containsIgnoreCase(bill.getBillNumber(), q)
+                        || containsIgnoreCase(bill.getCustomerName(), q)
+                        || containsIgnoreCase(bill.getPhoneNumber(), q))
+                .sorted(Comparator.comparing(BillDTO::getId))
+                .toList();
     }
-    
+
     public List<BillDTO> searchByCustomer(String customerName) {
-        return billRepository.findByCustomerNameContainingIgnoreCase(customerName)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        String q = customerName.toLowerCase();
+        return billsById.values().stream()
+                .filter(bill -> containsIgnoreCase(bill.getCustomerName(), q))
+                .sorted(Comparator.comparing(BillDTO::getId))
+                .toList();
     }
-    
+
     public List<BillDTO> searchByPhone(String phoneNumber) {
-        return billRepository.findByPhoneNumber(phoneNumber)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        return billsById.values().stream()
+                .filter(bill -> bill.getPhoneNumber() != null && bill.getPhoneNumber().equals(phoneNumber))
+                .sorted(Comparator.comparing(BillDTO::getId))
+                .toList();
     }
-    
+
     public List<BillDTO> getBillsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return billRepository.findBillsByDateRange(startDate, endDate)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        return billsById.values().stream()
+                .filter(bill -> bill.getCreatedAt() != null
+                        && !bill.getCreatedAt().isBefore(startDate)
+                        && !bill.getCreatedAt().isAfter(endDate))
+                .sorted(Comparator.comparing(BillDTO::getId))
+                .toList();
     }
-    
+
     public List<BillDTO> getTodaysBills() {
-        return billRepository.findTodaysBills()
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime tomorrowStart = todayStart.plusDays(1);
+        return getBillsByDateRange(todayStart, tomorrowStart.minusNanos(1));
     }
-    
+
     public List<BillDTO> getPastWeekBills() {
         LocalDateTime endDate = LocalDateTime.now();
         LocalDateTime startDate = endDate.minusDays(7);
         return getBillsByDateRange(startDate, endDate);
     }
-    
+
     public List<BillDTO> getPastMonthBills() {
         LocalDateTime endDate = LocalDateTime.now();
         LocalDateTime startDate = endDate.minusMonths(1);
         return getBillsByDateRange(startDate, endDate);
     }
-    
+
     public List<BillDTO> getPastSixMonthsBills() {
         LocalDateTime endDate = LocalDateTime.now();
         LocalDateTime startDate = endDate.minusMonths(6);
         return getBillsByDateRange(startDate, endDate);
     }
-    
+
     public List<BillDTO> getPastYearBills() {
         LocalDateTime endDate = LocalDateTime.now();
         LocalDateTime startDate = endDate.minusYears(1);
         return getBillsByDateRange(startDate, endDate);
     }
-    
+
     public boolean billNumberExists(String billNumber) {
-        return billRepository.existsByBillNumber(billNumber);
+        return billNumberIndex.containsKey(billNumber);
     }
-    
-    @SuppressWarnings("null")
+
     public BillDTO createBill(BillDTO billDTO) {
-        if (billRepository.existsByBillNumber(billDTO.getBillNumber())) {
+        if (billNumberExists(billDTO.getBillNumber())) {
             throw new RuntimeException("Bill number already exists: " + billDTO.getBillNumber());
         }
-        
-        Bill bill = convertToEntity(billDTO);
-        Bill savedBill = billRepository.save(bill);
-        return convertToDTO(savedBill);
+
+        Long id = billDTO.getId() != null ? billDTO.getId() : idGenerator.getAndIncrement();
+        BillDTO saved = copyWithAudit(billDTO, id, LocalDateTime.now(), LocalDateTime.now());
+        billsById.put(id, saved);
+        billNumberIndex.put(saved.getBillNumber(), id);
+        return saved;
     }
-    
+
     public BillDTO updateBill(String billNumber, BillDTO billDTO) {
-        Bill bill = billRepository.findByBillNumber(billNumber)
-                .orElseThrow(() -> new RuntimeException("Bill not found with number: " + billNumber));
-        
-        bill.setCustomerName(billDTO.getCustomerName());
-        bill.setPhoneNumber(billDTO.getPhoneNumber());
-        bill.setSubtotal(billDTO.getSubtotal());
-        bill.setGstAmount(billDTO.getGstAmount());
-        bill.setGstRate(billDTO.getGstRate());
-        bill.setGstType(billDTO.getGstType());
-        bill.setDiscount(billDTO.getDiscount());
-        bill.setTotalAmount(billDTO.getTotalAmount());
-        
-        // Update items
-        bill.getItems().clear();
-        if (billDTO.getItems() != null) {
-            billDTO.getItems().forEach(itemDTO -> {
-                BillItem item = convertItemToEntity(itemDTO);
-                item.setBill(bill);
-                bill.getItems().add(item);
-            });
+        BillDTO existing = getBillByBillNumber(billNumber);
+
+        if (!billNumber.equals(billDTO.getBillNumber()) && billNumberExists(billDTO.getBillNumber())) {
+            throw new RuntimeException("Bill number already exists: " + billDTO.getBillNumber());
         }
-        
-        Bill updatedBill = billRepository.save(bill);
-        return convertToDTO(updatedBill);
+
+        BillDTO updated = copyWithAudit(billDTO, existing.getId(), existing.getCreatedAt(), LocalDateTime.now());
+        billsById.put(existing.getId(), updated);
+
+        if (!billNumber.equals(updated.getBillNumber())) {
+            billNumberIndex.remove(billNumber);
+        }
+        billNumberIndex.put(updated.getBillNumber(), existing.getId());
+
+        return updated;
     }
-    
-    @SuppressWarnings("null")
+
     public void deleteBill(String billNumber) {
-        Bill bill = billRepository.findByBillNumber(billNumber)
-                .orElseThrow(() -> new RuntimeException("Bill not found with number: " + billNumber));
-        billRepository.delete(bill);
+        BillDTO bill = getBillByBillNumber(billNumber);
+        billsById.remove(bill.getId());
+        billNumberIndex.remove(billNumber);
     }
-    
+
     public Integer getTotalBills() {
-        return (int) billRepository.count();
+        return billsById.size();
     }
-    
+
     public Double getTodaysRevenue() {
-        return billRepository.findTodaysBills()
-                .stream()
-                .mapToDouble(Bill::getTotalAmount)
+        return getTodaysBills().stream()
+                .mapToDouble(bill -> bill.getTotalAmount() == null ? 0.0 : bill.getTotalAmount())
                 .sum();
     }
-    
-    private BillDTO convertToDTO(Bill bill) {
-        List<BillItemDTO> itemDTOs = bill.getItems() != null ?
-                bill.getItems().stream().map(this::convertItemToDTO).collect(Collectors.toList()) :
-                List.of();
-        
+
+    private BillDTO copyWithAudit(BillDTO source, Long id, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        List<BillItemDTO> items = source.getItems() == null ? List.of() : source.getItems().stream()
+                .map(item -> new BillItemDTO(
+                        item.getId(),
+                        item.getDesignName(),
+                        item.getSize(),
+                        item.getType(),
+                        item.getQuantityBoxes(),
+                        item.getPricePerBox(),
+                        item.getTotalPrice()
+                ))
+                .toList();
+
         return new BillDTO(
-                bill.getId(),
-                bill.getBillNumber(),
-                bill.getCustomerName(),
-                bill.getPhoneNumber(),
-                bill.getSubtotal(),
-                bill.getGstAmount(),
-                bill.getGstRate(),
-                bill.getGstType(),
-                bill.getDiscount(),
-                bill.getTotalAmount(),
-                itemDTOs,
-                bill.getCreatedAt(),
-                bill.getUpdatedAt()
+                id,
+                source.getBillNumber(),
+                source.getCustomerName(),
+                source.getPhoneNumber(),
+                source.getSubtotal(),
+                source.getGstAmount(),
+                source.getGstRate(),
+                source.getGstType(),
+                source.getDiscount(),
+                source.getTotalAmount(),
+                items,
+                createdAt,
+                updatedAt
         );
     }
-    
-    private Bill convertToEntity(BillDTO billDTO) {
-        Bill bill = new Bill();
-        bill.setBillNumber(billDTO.getBillNumber());
-        bill.setCustomerName(billDTO.getCustomerName());
-        bill.setPhoneNumber(billDTO.getPhoneNumber());
-        bill.setSubtotal(billDTO.getSubtotal());
-        bill.setGstAmount(billDTO.getGstAmount());
-        bill.setGstRate(billDTO.getGstRate());
-        bill.setGstType(billDTO.getGstType());
-        bill.setDiscount(billDTO.getDiscount());
-        bill.setTotalAmount(billDTO.getTotalAmount());
-        
-        if (billDTO.getItems() != null) {
-            bill.setItems(billDTO.getItems().stream()
-                    .map(itemDTO -> {
-                        BillItem item = convertItemToEntity(itemDTO);
-                        item.setBill(bill);
-                        return item;
-                    })
-                    .collect(Collectors.toList()));
-        }
-        
-        return bill;
-    }
-    
-    private BillItemDTO convertItemToDTO(BillItem item) {
-        return new BillItemDTO(
-                item.getId(),
-                item.getDesignName(),
-                item.getSize(),
-                item.getType(),
-                item.getQuantityBoxes(),
-                item.getPricePerBox(),
-                item.getTotalPrice()
-        );
-    }
-    
-    private BillItem convertItemToEntity(BillItemDTO itemDTO) {
-        return new BillItem(
-                itemDTO.getId(),
-                null,
-                itemDTO.getDesignName(),
-                itemDTO.getSize(),
-                itemDTO.getType(),
-                itemDTO.getQuantityBoxes(),
-                itemDTO.getPricePerBox(),
-                itemDTO.getTotalPrice()
-        );
+
+    private boolean containsIgnoreCase(String value, String query) {
+        return value != null && value.toLowerCase().contains(query);
     }
 }
