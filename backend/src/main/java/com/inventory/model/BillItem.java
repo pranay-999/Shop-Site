@@ -15,6 +15,9 @@ public class BillItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "bill_id")
+    private Long billId;
+
     @Column(name = "design_name", nullable = false)
     private String designName;
 
@@ -37,6 +40,8 @@ public class BillItem {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getBillId() { return billId; }
+    public void setBillId(Long billId) { this.billId = billId; }
     public String getDesignName() { return designName; }
     public void setDesignName(String designName) { this.designName = designName; }
     public String getSize() { return size; }

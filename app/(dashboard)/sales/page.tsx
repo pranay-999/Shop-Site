@@ -49,21 +49,19 @@ export default function NewSalePage() {
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [viewOldBillOpen, setViewOldBillOpen] = useState(false)
   const [oldBillNumber, setOldBillNumber] = useState("")
   const [oldBillData, setOldBillData] = useState<any>(null)
 
-  // Load stocks from Supabase - filtered by category
+  // Load stocks from backend - filtered by category
   useEffect(() => {
     const loadStocks = async () => {
       try {
         const data = await getStocks()
-        // Filter by selected category
         const filteredData = data.filter((stock: Stock) => stock.categoryId === selectedCategoryId)
         setStocks(filteredData)
       } catch (error) {
         console.error("Failed to load stocks:", error)
-        alert("Failed to load stocks from Supabase")
+        alert("Failed to load stocks")
       } finally {
         setLoading(false)
       }
@@ -96,20 +94,37 @@ export default function NewSalePage() {
   const handleStockSelect = (stock: Stock) => {
     setSelectedStock(stock)
     setSearchQuery(stock.designName)
-    setCustomPrice(stock.price.toString())
+    // ✅ FIX: Only pre-fill price if the stock has a real price above 0
+    // If price is 0 or missing, leave the field empty so user must type it
+    const stockPrice = stock.pricePerBox ?? stock.price ?? 0
+    setCustomPrice(stockPrice > 0 ? stockPrice.toString() : "")
   }
 
   const handleAddToCart = () => {
-    if (!selectedStock || !boxQuantity || Number.parseInt(boxQuantity) <= 0) {
-      alert("Please select a design and enter valid quantity")
+    // ✅ FIX: Check selectedStock and boxQuantity first
+    if (!selectedStock) {
+      alert("Please select a design first")
+      return
+    }
+    if (!boxQuantity || Number.parseInt(boxQuantity) <= 0) {
+      alert("Please enter a valid quantity (more than 0)")
+      return
+    }
+
+    // ✅ FIX: Price is required — do not allow empty or 0
+    if (!customPrice || Number.parseFloat(customPrice) <= 0) {
+      alert("Please enter a price per box (cannot be 0 or empty)")
       return
     }
 
     const boxes = Number.parseInt(boxQuantity)
-    const price = customPrice ? Number.parseFloat(customPrice) : selectedStock.price
+    // ✅ FIX: price is always a number now — safe to use directly
+    const price = Number.parseFloat(customPrice)
 
-    if (boxes > selectedStock.noOfBoxes) {
-      alert(`Only ${selectedStock.noOfBoxes} boxes available`)
+    // ✅ FIX: noOfBoxes is possibly undefined — use ?? 0 as fallback
+    const availableBoxes = selectedStock.noOfBoxes ?? selectedStock.totalBoxes ?? 0
+    if (boxes > availableBoxes) {
+      alert(`Only ${availableBoxes} boxes available`)
       return
     }
 
@@ -125,6 +140,21 @@ export default function NewSalePage() {
     }
 
     setCartItems([...cartItems, newItem])
+
+    // ✅ Reduce the displayed box count for this stock on screen
+    // This only changes what is shown — the database is updated when the bill is saved
+    setStocks((prevStocks) =>
+      prevStocks.map((s) =>
+        s.id === selectedStock.id
+          ? {
+              ...s,
+              noOfBoxes: (s.noOfBoxes ?? s.totalBoxes ?? 0) - boxes,
+              totalBoxes: (s.totalBoxes ?? 0) - boxes,
+            }
+          : s
+      )
+    )
+
     setSelectedStock(null)
     setBoxQuantity("")
     setCustomPrice("")
@@ -154,9 +184,28 @@ export default function NewSalePage() {
   }
 
   const handleRemoveItem = (itemId: string) => {
+    // Find the item BEFORE removing so we know how many boxes to give back
+    const removedItem = cartItems.find((item) => item.id === itemId)
+
     setCartItems(cartItems.filter((item) => item.id !== itemId))
+
     if (editingItemId === itemId) {
       setEditingItemId(null)
+    }
+
+    // Add the boxes back to the stock display on screen
+    if (removedItem) {
+      setStocks((prevStocks) =>
+        prevStocks.map((s) =>
+          s.id === removedItem.stockId
+            ? {
+                ...s,
+                noOfBoxes: (s.noOfBoxes ?? s.totalBoxes ?? 0) + removedItem.boxes,
+                totalBoxes: (s.totalBoxes ?? 0) + removedItem.boxes,
+              }
+            : s
+        )
+      )
     }
   }
 
@@ -176,22 +225,14 @@ export default function NewSalePage() {
 
   const validateForm = () => {
     const errors: string[] = []
-
-    if (!billNumber.trim()) {
-      errors.push("Bill number is required")
-    }
-    if (!customerName.trim()) {
-      errors.push("Customer name is required")
-    }
+    if (!billNumber.trim())    errors.push("Bill number is required")
+    if (!customerName.trim())  errors.push("Customer name is required")
     if (!customerPhone.trim()) {
       errors.push("Phone number is required")
     } else if (!/^[+]?[\d\s-()]{10,}$/.test(customerPhone)) {
       errors.push("Please enter a valid phone number")
     }
-    if (cartItems.length === 0) {
-      errors.push("Add at least one item to cart")
-    }
-
+    if (cartItems.length === 0) errors.push("Add at least one item to cart")
     setValidationErrors(errors)
     return errors.length === 0
   }
@@ -201,7 +242,6 @@ export default function NewSalePage() {
       alert("Please enter a bill number")
       return
     }
-
     try {
       router.push(`/bills/edit/${oldBillNumber}`)
     } catch (error) {
@@ -212,7 +252,6 @@ export default function NewSalePage() {
 
   const handleCompleteSale = async () => {
     if (!validateForm()) return
-
     try {
       const billItems: BillItem[] = cartItems.map((item) => ({
         stockId: item.stockId,
@@ -239,7 +278,6 @@ export default function NewSalePage() {
 
       await createBill(billData)
       alert(`Sale completed! Bill: ${billNumber}`)
-      // Reset form
       setBillNumber("")
       setCustomerName("")
       setCustomerPhone("")
@@ -299,7 +337,7 @@ export default function NewSalePage() {
 
       <main className="container mx-auto px-4 py-8 max-w-[1800px]">
         <div className="space-y-6">
-          {/* Bill Information - Full Width at Top */}
+          {/* Bill Information */}
           <Card className="mb-6 max-w-4xl mx-auto">
             <CardHeader className="pb-4">
               <CardTitle>Bill Information</CardTitle>
@@ -321,7 +359,6 @@ export default function NewSalePage() {
                     </Alert>
                   )}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="customer_name">Customer Name *</Label>
                   <Input
@@ -331,7 +368,6 @@ export default function NewSalePage() {
                     onChange={(e) => setCustomerName(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="customer_phone">Phone Number *</Label>
                   <Input
@@ -346,7 +382,6 @@ export default function NewSalePage() {
           </Card>
 
           <div className="grid lg:grid-cols-[1fr_380px] gap-6 max-w-6xl mx-auto">
-            {/* Left Column - Add Items and Cart */}
             <div className="space-y-6">
               {/* Category Display */}
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -384,7 +419,7 @@ export default function NewSalePage() {
                           >
                             <div className="font-medium text-sm">{stock.designName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {stock.size} • {stock.type} • {stock.noOfBoxes} boxes available
+                              {stock.size} • {stock.type} • {stock.noOfBoxes ?? stock.totalBoxes} boxes available
                             </div>
                           </div>
                         ))}
@@ -405,31 +440,32 @@ export default function NewSalePage() {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Available</p>
-                          <p className="font-medium">{selectedStock.noOfBoxes} boxes</p>
+                          <p className="font-medium">{selectedStock.noOfBoxes ?? selectedStock.totalBoxes} boxes</p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label htmlFor="box_quantity" className="text-sm">
-                            No. of Boxes
+                            No. of Boxes *
                           </Label>
                           <Input
                             id="box_quantity"
                             type="number"
-                            placeholder="Qty"
+                            placeholder="Enter quantity"
                             value={boxQuantity}
                             onChange={(e) => setBoxQuantity(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="custom_price" className="text-sm">
-                            Amount per Box (₹)
+                            Price per Box (₹) *
                           </Label>
+                          {/* ✅ FIX: placeholder says "Enter price" — no default 0 shown */}
                           <Input
                             id="custom_price"
                             type="number"
-                            placeholder="Price"
+                            placeholder="Enter price"
                             value={customPrice}
                             onChange={(e) => setCustomPrice(e.target.value)}
                           />
@@ -540,18 +576,14 @@ export default function NewSalePage() {
 
                   <div className="pt-2 border-t space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="gst_toggle" className="cursor-pointer text-sm">
-                        Apply GST
-                      </Label>
+                      <Label htmlFor="gst_toggle" className="cursor-pointer text-sm">Apply GST</Label>
                       <Switch id="gst_toggle" checked={gstEnabled} onCheckedChange={setGstEnabled} />
                     </div>
 
                     {gstEnabled && (
                       <div className="space-y-2">
                         <div className="space-y-1">
-                          <Label htmlFor="gst_rate" className="text-xs">
-                            GST Rate (%)
-                          </Label>
+                          <Label htmlFor="gst_rate" className="text-xs">GST Rate (%)</Label>
                           <Input
                             id="gst_rate"
                             type="number"
@@ -564,25 +596,16 @@ export default function NewSalePage() {
                         <RadioGroup value={gstType} onValueChange={(value) => setGstType(value as "EXCLUSIVE" | "INCLUSIVE")}>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="EXCLUSIVE" id="exclusive" />
-                            <Label htmlFor="exclusive" className="text-sm cursor-pointer">
-                              Exclusive
-                            </Label>
+                            <Label htmlFor="exclusive" className="text-sm cursor-pointer">Exclusive</Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="INCLUSIVE" id="inclusive" />
-                            <Label htmlFor="inclusive" className="text-sm cursor-pointer">
-                              Inclusive
-                            </Label>
+                            <Label htmlFor="inclusive" className="text-sm cursor-pointer">Inclusive</Label>
                           </div>
                         </RadioGroup>
 
                         {gstType === "INCLUSIVE" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAdjustUnitPrices}
-                            className="w-full bg-transparent"
-                          >
+                          <Button variant="outline" size="sm" onClick={handleAdjustUnitPrices} className="w-full bg-transparent">
                             Adjust Unit Prices
                           </Button>
                         )}
@@ -623,7 +646,6 @@ export default function NewSalePage() {
             <DialogTitle>Bill Preview</DialogTitle>
             <DialogDescription>Review the bill before completing the sale</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -660,9 +682,7 @@ export default function NewSalePage() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{item.design_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.size} • {item.type}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{item.size} • {item.type}</p>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">{item.boxes}</TableCell>
@@ -680,14 +700,10 @@ export default function NewSalePage() {
                 <span className="font-medium">₹{subtotal.toFixed(2)}</span>
               </div>
               {gstEnabled && (
-                <>
-                  <div className="flex justify-between">
-                    <span>
-                      GST ({gstRate}% {gstType}):
-                    </span>
-                    <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
-                  </div>
-                </>
+                <div className="flex justify-between">
+                  <span>GST ({gstRate}% {gstType}):</span>
+                  <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
+                </div>
               )}
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Grand Total:</span>
@@ -696,12 +712,8 @@ export default function NewSalePage() {
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={() => setViewBillOpen(false)} variant="outline" className="flex-1">
-                Edit
-              </Button>
-              <Button onClick={handleCompleteSale} className="flex-1">
-                Confirm & Complete
-              </Button>
+              <Button onClick={() => setViewBillOpen(false)} variant="outline" className="flex-1">Edit</Button>
+              <Button onClick={handleCompleteSale} className="flex-1">Confirm & Complete</Button>
             </div>
           </div>
         </DialogContent>
@@ -788,11 +800,7 @@ export default function NewSalePage() {
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Bill
                 </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                  onClick={() => alert("Print functionality")}
-                >
+                <Button variant="outline" className="flex-1 bg-transparent" onClick={() => alert("Print functionality")}>
                   <Printer className="h-4 w-4 mr-2" />
                   Print Bill
                 </Button>

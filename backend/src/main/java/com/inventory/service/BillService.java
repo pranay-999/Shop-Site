@@ -4,7 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.inventory.dto.BillDTO;
 import com.inventory.dto.BillItemDTO;
@@ -21,65 +23,64 @@ public class BillService {
         this.billRepository = billRepository;
     }
 
+    // Converts a BillItem (database row) → BillItemDTO (what we send to frontend)
     private BillItemDTO itemToDTO(BillItem item) {
-        return new BillItemDTO(
-            item.getId(), item.getDesignName(), item.getSize(), item.getType(),
-            item.getQuantityBoxes(), item.getPricePerBox(), item.getTotalPrice()
+        int qty      = item.getQuantityBoxes() == null ? 0   : item.getQuantityBoxes();
+        double price = item.getPricePerBox()   == null ? 0.0 : item.getPricePerBox();
+        double total = item.getTotalPrice()    == null ? 0.0 : item.getTotalPrice();
+        return new BillItemDTO(item.getId(), item.getDesignName(), item.getSize(), item.getType(), qty, price, total);
+    }
+
+    // Converts a Bill (database row) → BillDTO (what we send to frontend)
+    private BillDTO toDTO(Bill bill) {
+        List<BillItemDTO> items = bill.getItems() == null ? List.of() :
+            bill.getItems().stream().map(this::itemToDTO).toList();
+        double subtotal    = bill.getSubtotal()    == null ? 0.0        : bill.getSubtotal();
+        double gstAmount   = bill.getGstAmount()   == null ? 0.0        : bill.getGstAmount();
+        double gstRate     = bill.getGstRate()     == null ? 0.0        : bill.getGstRate();
+        double discount    = bill.getDiscount()    == null ? 0.0        : bill.getDiscount();
+        double totalAmount = bill.getTotalAmount() == null ? 0.0        : bill.getTotalAmount();
+        String gstType     = bill.getGstType()     == null ? "EXCLUSIVE" : bill.getGstType();
+        return new BillDTO(
+            bill.getId(), bill.getBillNumber(), bill.getCustomerName(), bill.getPhoneNumber(),
+            subtotal, gstAmount, gstRate, gstType, discount, totalAmount,
+            items, bill.getCreatedAt(), bill.getUpdatedAt()
         );
     }
 
-    private BillDTO toDTO(Bill bill) {
-    List<BillItemDTO> items = bill.getItems() == null ? List.of() :
-        bill.getItems().stream().map(this::itemToDTO).toList();
-    return new BillDTO(
-        bill.getId(),
-        bill.getBillNumber(),
-        bill.getCustomerName(),
-        bill.getPhoneNumber(),
-        bill.getSubtotal() != null ? bill.getSubtotal() : 0.0,
-        bill.getGstAmount() != null ? bill.getGstAmount() : 0.0,
-        bill.getGstRate() != null ? bill.getGstRate() : 0.0,
-        bill.getGstType() != null ? bill.getGstType() : "EXCLUSIVE",
-        bill.getDiscount() != null ? bill.getDiscount() : 0.0,
-        bill.getTotalAmount() != null ? bill.getTotalAmount() : 0.0,
-        items,
-        bill.getCreatedAt(),
-        bill.getUpdatedAt()
-    );
-}
-
+    // Converts a BillDTO (from frontend) → Bill (database row)
     private Bill toEntity(BillDTO dto) {
-    Bill bill = new Bill();
-    bill.setBillNumber(dto.getBillNumber());
-    bill.setCustomerName(dto.getCustomerName());
-    bill.setPhoneNumber(dto.getPhoneNumber());
-    bill.setSubtotal(dto.getSubtotal() != null ? dto.getSubtotal() : 0.0);
-    bill.setGstAmount(dto.getGstAmount() != null ? dto.getGstAmount() : 0.0);
-    bill.setGstRate(dto.getGstRate() != null ? dto.getGstRate() : 0.0);
-    bill.setGstType(dto.getGstType() != null ? dto.getGstType() : "EXCLUSIVE");
-    bill.setDiscount(dto.getDiscount() != null ? dto.getDiscount() : 0.0);
-    bill.setTotalAmount(dto.getTotalAmount() != null ? dto.getTotalAmount() : 0.0);
-    if (dto.getItems() != null) {
-        List<BillItem> items = dto.getItems().stream().map(itemDto -> {
-            BillItem item = new BillItem();
-            item.setDesignName(itemDto.getDesignName());
-            item.setSize(itemDto.getSize());
-            item.setType(itemDto.getType());
-            item.setQuantityBoxes(itemDto.getQuantityBoxes() != null ? itemDto.getQuantityBoxes() : 0);
-            item.setPricePerBox(itemDto.getPricePerBox() != null ? itemDto.getPricePerBox() : 0.0);
-            item.setTotalPrice(itemDto.getTotalPrice() != null ? itemDto.getTotalPrice() : 0.0);
-            return item;
-        }).collect(Collectors.toList());
-        bill.setItems(items);
+        Bill bill = new Bill();
+        bill.setBillNumber(dto.getBillNumber());
+        bill.setCustomerName(dto.getCustomerName());
+        bill.setPhoneNumber(dto.getPhoneNumber());
+        bill.setSubtotal(    dto.getSubtotal()    == null ? 0.0         : dto.getSubtotal());
+        bill.setGstAmount(   dto.getGstAmount()   == null ? 0.0         : dto.getGstAmount());
+        bill.setGstRate(     dto.getGstRate()     == null ? 0.0         : dto.getGstRate());
+        bill.setGstType(     dto.getGstType()     == null ? "EXCLUSIVE" : dto.getGstType());
+        bill.setDiscount(    dto.getDiscount()    == null ? 0.0         : dto.getDiscount());
+        bill.setTotalAmount( dto.getTotalAmount() == null ? 0.0         : dto.getTotalAmount());
+        if (dto.getItems() != null) {
+            List<BillItem> items = dto.getItems().stream().map(itemDto -> {
+                BillItem item = new BillItem();
+                item.setDesignName(itemDto.getDesignName());
+                item.setSize(itemDto.getSize());
+                item.setType(itemDto.getType());
+                item.setQuantityBoxes(itemDto.getQuantityBoxes() == null ? 0   : itemDto.getQuantityBoxes());
+                item.setPricePerBox(  itemDto.getPricePerBox()   == null ? 0.0 : itemDto.getPricePerBox());
+                item.setTotalPrice(   itemDto.getTotalPrice()    == null ? 0.0 : itemDto.getTotalPrice());
+                return item;
+            }).collect(Collectors.toList());
+            bill.setItems(items);
         }
-       return bill;
+        return bill;
     }
 
     public List<BillDTO> getAllBills() {
         return billRepository.findAll().stream().map(this::toDTO).toList();
     }
 
-    public BillDTO getBillById(Long id) {
+    public BillDTO getBillById(@NonNull Long id) {
         return toDTO(billRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Bill not found with id: " + id)));
     }
@@ -118,22 +119,25 @@ public class BillService {
         return getBillsByDateRange(start, LocalDateTime.now());
     }
 
-    public List<BillDTO> getPastWeekBills() { return getBillsByDateRange(LocalDateTime.now().minusDays(7), LocalDateTime.now()); }
-    public List<BillDTO> getPastMonthBills() { return getBillsByDateRange(LocalDateTime.now().minusMonths(1), LocalDateTime.now()); }
+    public List<BillDTO> getPastWeekBills()     { return getBillsByDateRange(LocalDateTime.now().minusDays(7),   LocalDateTime.now()); }
+    public List<BillDTO> getPastMonthBills()     { return getBillsByDateRange(LocalDateTime.now().minusMonths(1), LocalDateTime.now()); }
     public List<BillDTO> getPastSixMonthsBills() { return getBillsByDateRange(LocalDateTime.now().minusMonths(6), LocalDateTime.now()); }
-    public List<BillDTO> getPastYearBills() { return getBillsByDateRange(LocalDateTime.now().minusYears(1), LocalDateTime.now()); }
+    public List<BillDTO> getPastYearBills()      { return getBillsByDateRange(LocalDateTime.now().minusYears(1),  LocalDateTime.now()); }
 
     public boolean billNumberExists(String billNumber) {
         return billRepository.existsByBillNumber(billNumber);
     }
 
+    @Transactional
     public BillDTO createBill(BillDTO billDTO) {
         if (billNumberExists(billDTO.getBillNumber())) {
             throw new RuntimeException("Bill number already exists: " + billDTO.getBillNumber());
         }
-        return toDTO(billRepository.save(toEntity(billDTO)));
+        Bill saved = billRepository.save(toEntity(billDTO));
+        return toDTO(saved);
     }
 
+    @Transactional
     public BillDTO updateBill(String billNumber, BillDTO billDTO) {
         Bill existing = billRepository.findByBillNumber(billNumber)
             .orElseThrow(() -> new RuntimeException("Bill not found: " + billNumber));
@@ -152,8 +156,8 @@ public class BillService {
     public Integer getTotalBills() { return (int) billRepository.count(); }
 
     public Double getTodaysRevenue() {
-    return getTodaysBills().stream()
-        .mapToDouble(b -> b.getTotalAmount() != null ? b.getTotalAmount() : 0.0)
-        .sum();
+        return getTodaysBills().stream()
+            .mapToDouble(b -> b.getTotalAmount() == null ? 0.0 : b.getTotalAmount())
+            .sum();
     }
 }

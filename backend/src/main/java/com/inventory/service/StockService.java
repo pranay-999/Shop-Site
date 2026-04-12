@@ -2,6 +2,7 @@ package com.inventory.service;
 
 import java.util.List;
 
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.inventory.dto.StockDTO;
@@ -11,7 +12,6 @@ import com.inventory.repository.StockRepository;
 @Service
 public class StockService {
 
-    // Spring automatically gives us a StockRepository connected to the database
     private final StockRepository stockRepository;
 
     public StockService(StockRepository stockRepository) {
@@ -43,7 +43,7 @@ public class StockService {
         return stockRepository.findAll().stream().map(this::toDTO).toList();
     }
 
-    public StockDTO getStockById(Long id) {
+    public StockDTO getStockById(@NonNull Long id) {
         Stock stock = stockRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
         return toDTO(stock);
@@ -72,7 +72,7 @@ public class StockService {
         return toDTO(saved);
     }
 
-    public StockDTO updateStock(Long id, StockDTO stockDTO) {
+    public StockDTO updateStock(@NonNull Long id, StockDTO stockDTO) {
         Stock existing = stockRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
         existing.setDesignName(stockDTO.getDesignName());
@@ -84,7 +84,7 @@ public class StockService {
         return toDTO(stockRepository.save(existing));
     }
 
-    public void deleteStock(Long id) {
+    public void deleteStock(@NonNull Long id) {
         if (!stockRepository.existsById(id)) {
             throw new RuntimeException("Stock not found with id: " + id);
         }

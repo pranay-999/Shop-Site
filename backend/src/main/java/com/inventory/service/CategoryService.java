@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.inventory.dto.CategoryDTO;
@@ -29,7 +30,7 @@ public class CategoryService {
         return categoryRepository.findAll().stream().map(this::toDTO).toList();
     }
 
-    public CategoryDTO getCategoryById(Long id) {
+    public CategoryDTO getCategoryById(@NonNull Long id) {
         return toDTO(categoryRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Category not found: " + id)));
     }
@@ -57,12 +58,12 @@ public class CategoryService {
         }
         log.info("Seeding default categories into database...");
         List<CategoryDTO> defaults = List.of(
-            new CategoryDTO(null, "Tiles", "tiles", "Ceramic, Porcelain, Marble, Granite tiles", "square", "#3B82F6", null, null),
-            new CategoryDTO(null, "Electronics", "electronics", "Electronic items", "lightbulb", "#F59E0B", null, null),
-            new CategoryDTO(null, "Sanitary Ware", "sanitary-ware", "Bathroom fixtures", "droplet", "#10B981", null, null),
-            new CategoryDTO(null, "Faucets & Fixtures", "faucets", "Water faucets", "wrench", "#8B5CF6", null, null),
-            new CategoryDTO(null, "Hardware", "hardware", "Building hardware", "hammer", "#EF4444", null, null),
-            new CategoryDTO(null, "Other", "other", "Miscellaneous", "cube", "#6B7280", null, null)
+            new CategoryDTO(null, "Tiles",             "tiles",         "Ceramic, Porcelain, Marble, Granite tiles", "square",   "#3B82F6", null, null),
+            new CategoryDTO(null, "Electronics",       "electronics",   "Electronic items",                          "lightbulb","#F59E0B", null, null),
+            new CategoryDTO(null, "Sanitary Ware",     "sanitary-ware", "Bathroom fixtures",                         "droplet",  "#10B981", null, null),
+            new CategoryDTO(null, "Faucets & Fixtures","faucets",       "Water faucets",                             "wrench",   "#8B5CF6", null, null),
+            new CategoryDTO(null, "Hardware",          "hardware",      "Building hardware",                         "hammer",   "#EF4444", null, null),
+            new CategoryDTO(null, "Other",             "other",         "Miscellaneous",                             "cube",     "#6B7280", null, null)
         );
         defaults.forEach(this::createCategory);
         log.info("Seeded {} categories.", defaults.size());
