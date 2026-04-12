@@ -2,11 +2,31 @@ spring:
   application:
     name: tiles-sanitary-backend
 
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+  datasource:
+    url: jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
+    username: postgres.recnnsniwonmtoutfyqt
+    password: PmwnTXD7FNKat9ZF
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 5
+
+  sql:
+    init:
+      mode: never
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
 
   jackson:
     serialization:
@@ -23,9 +43,3 @@ logging:
   level:
     root: INFO
     com.inventory: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"
-
-app:
-  storage:
-    mode: in-memory

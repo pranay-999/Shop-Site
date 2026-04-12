@@ -1,112 +1,101 @@
 package com.inventory.service;
 
-import com.inventory.dto.StockDTO;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import com.inventory.dto.StockDTO;
+import com.inventory.model.Stock;
+import com.inventory.repository.StockRepository;
 
 @Service
 public class StockService {
 
-    private final Map<Long, StockDTO> stocks = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
+    // Spring automatically gives us a StockRepository connected to the database
+    private final StockRepository stockRepository;
+
+    public StockService(StockRepository stockRepository) {
+        this.stockRepository = stockRepository;
+    }
+
+    // Helper: converts a Stock database row → StockDTO (what we send to the frontend)
+    private StockDTO toDTO(Stock stock) {
+        return new StockDTO(
+            stock.getId(), stock.getDesignName(), stock.getSize(), stock.getType(),
+            stock.getTotalBoxes(), stock.getPricePerBox(), stock.getCategoryId(),
+            stock.getCreatedAt(), stock.getUpdatedAt()
+        );
+    }
+
+    // Helper: converts a StockDTO (from frontend) → Stock database row
+    private Stock toEntity(StockDTO dto) {
+        Stock s = new Stock();
+        s.setDesignName(dto.getDesignName());
+        s.setSize(dto.getSize());
+        s.setType(dto.getType());
+        s.setTotalBoxes(dto.getTotalBoxes());
+        s.setPricePerBox(dto.getPricePerBox());
+        s.setCategoryId(dto.getCategoryId());
+        return s;
+    }
 
     public List<StockDTO> getAllStocks() {
-        return stocks.values().stream()
-                .sorted(Comparator.comparing(StockDTO::getId))
-                .toList();
+        return stockRepository.findAll().stream().map(this::toDTO).toList();
     }
 
     public StockDTO getStockById(Long id) {
-        StockDTO stock = stocks.get(id);
-        if (stock == null) {
-            throw new RuntimeException("Stock not found with id: " + id);
-        }
-        return stock;
+        Stock stock = stockRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
+        return toDTO(stock);
     }
 
     public StockDTO getStockByDesignName(String designName) {
-        return stocks.values().stream()
-                .filter(stock -> stock.getDesignName() != null
-                        && stock.getDesignName().equalsIgnoreCase(designName))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Stock not found with design name: " + designName));
+        Stock stock = stockRepository.findByDesignNameIgnoreCase(designName)
+            .orElseThrow(() -> new RuntimeException("Stock not found: " + designName));
+        return toDTO(stock);
     }
 
     public List<StockDTO> searchStocks(String searchTerm) {
-        String q = searchTerm.toLowerCase();
-        return stocks.values().stream()
-                .filter(stock -> containsIgnoreCase(stock.getDesignName(), q)
-                        || containsIgnoreCase(stock.getSize(), q)
-                        || containsIgnoreCase(stock.getType(), q))
-                .sorted(Comparator.comparing(StockDTO::getId))
-                .toList();
+        return stockRepository
+            .findByDesignNameContainingIgnoreCaseOrSizeContainingIgnoreCaseOrTypeContainingIgnoreCase(
+                searchTerm, searchTerm, searchTerm)
+            .stream().map(this::toDTO).toList();
     }
 
     public List<StockDTO> getLowStockItems(Integer threshold) {
-        return stocks.values().stream()
-                .filter(stock -> stock.getTotalBoxes() != null && stock.getTotalBoxes() < threshold)
-                .sorted(Comparator.comparing(StockDTO::getId))
-                .toList();
+        return stockRepository.findByTotalBoxesLessThan(threshold)
+            .stream().map(this::toDTO).toList();
     }
 
     public StockDTO createStock(StockDTO stockDTO) {
-        LocalDateTime now = LocalDateTime.now();
-        Long id = stockDTO.getId() != null ? stockDTO.getId() : idGenerator.getAndIncrement();
-        StockDTO saved = new StockDTO(
-                id,
-                stockDTO.getDesignName(),
-                stockDTO.getSize(),
-                stockDTO.getType(),
-                stockDTO.getTotalBoxes(),
-                stockDTO.getPricePerBox(),
-                stockDTO.getCategoryId(),
-                stockDTO.getCreatedAt() != null ? stockDTO.getCreatedAt() : now,
-                now
-        );
-        stocks.put(id, saved);
-        return saved;
+        Stock saved = stockRepository.save(toEntity(stockDTO));
+        return toDTO(saved);
     }
 
     public StockDTO updateStock(Long id, StockDTO stockDTO) {
-        StockDTO existing = getStockById(id);
-        StockDTO updated = new StockDTO(
-                existing.getId(),
-                stockDTO.getDesignName(),
-                stockDTO.getSize(),
-                stockDTO.getType(),
-                stockDTO.getTotalBoxes(),
-                stockDTO.getPricePerBox(),
-                stockDTO.getCategoryId(),
-                existing.getCreatedAt(),
-                LocalDateTime.now()
-        );
-        stocks.put(id, updated);
-        return updated;
+        Stock existing = stockRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
+        existing.setDesignName(stockDTO.getDesignName());
+        existing.setSize(stockDTO.getSize());
+        existing.setType(stockDTO.getType());
+        existing.setTotalBoxes(stockDTO.getTotalBoxes());
+        existing.setPricePerBox(stockDTO.getPricePerBox());
+        existing.setCategoryId(stockDTO.getCategoryId());
+        return toDTO(stockRepository.save(existing));
     }
 
     public void deleteStock(Long id) {
-        if (stocks.remove(id) == null) {
+        if (!stockRepository.existsById(id)) {
             throw new RuntimeException("Stock not found with id: " + id);
         }
+        stockRepository.deleteById(id);
     }
 
     public Integer getTotalStocks() {
-        return stocks.size();
+        return (int) stockRepository.count();
     }
 
     public Integer getLowStockCount(Integer threshold) {
-        return (int) stocks.values().stream()
-                .filter(stock -> stock.getTotalBoxes() != null && stock.getTotalBoxes() < threshold)
-                .count();
-    }
-
-    private boolean containsIgnoreCase(String value, String query) {
-        return value != null && value.toLowerCase().contains(query);
+        return (int) stockRepository.countByTotalBoxesLessThan(threshold);
     }
 }

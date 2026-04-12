@@ -3,11 +3,14 @@ export type Stock = {
   designName: string
   size: string
   type: string
-  noOfBoxes: number
-  price: number
+  totalBoxes: number
+  pricePerBox: number
   categoryId: number
   createdAt: string
   updatedAt: string
+  // Keep these as aliases so old code doesn't break
+  noOfBoxes?: number
+  price?: number
 }
 
 export type BillItem = {

@@ -46,9 +46,14 @@ public class StockController {
     }
     
     @PostMapping
-    public ResponseEntity<StockDTO> createStock(@RequestBody StockDTO stockDTO) {
+    public ResponseEntity<?> createStock(@RequestBody StockDTO stockDTO) {
+    try {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(stockService.createStock(stockDTO));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(java.util.Map.of("error", "A stock with this design name already exists in this category. Please use a different name."));
+        }
     }
     
     @PutMapping("/{id}")

@@ -1,51 +1,25 @@
-import { requireSupabase } from "@/lib/supabase"
+import { apiFetch } from "@/lib/api"
 import type { Stock } from "@/lib/types"
 
-type StockRow = {
-  id: number
-  design_name: string
-  size: string
-  type: string
-  total_boxes: number
-  price_per_box: number
-  category_id: number
-  created_at: string
-  updated_at: string
+// Java API already returns camelCase matching our Stock type
+// We just add the alias fields so existing page code doesn't break
+function normalizeStock(s: Stock): Stock {
+  return {
+    ...s,
+    price: s.pricePerBox,       // sales page uses stock.price
+    noOfBoxes: s.totalBoxes,    // sales page uses stock.noOfBoxes
+  }
 }
 
-const mapStock = (row: StockRow): Stock => ({
-  id: row.id,
-  designName: row.design_name,
-  size: row.size,
-  type: row.type,
-  noOfBoxes: row.total_boxes,
-  price: row.price_per_box,
-  categoryId: row.category_id,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-})
-
 export async function getStocks(): Promise<Stock[]> {
-  const { data, error } = await requireSupabase()
-    .from("stocks")
-    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
-    .order("id", { ascending: true })
-
-  if (error) throw error
-  return (data ?? []).map(mapStock)
+  const data = await apiFetch<Stock[]>("/stocks")
+  return data.map(normalizeStock)
 }
 
 export async function searchStocks(query: string): Promise<Stock[]> {
   if (!query.trim()) return getStocks()
-
-  const { data, error } = await requireSupabase()
-    .from("stocks")
-    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
-    .or(`design_name.ilike.%${query}%,size.ilike.%${query}%,type.ilike.%${query}%`)
-    .order("id", { ascending: true })
-
-  if (error) throw error
-  return (data ?? []).map(mapStock)
+  const data = await apiFetch<Stock[]>(`/stocks/search?q=${encodeURIComponent(query)}`)
+  return data.map(normalizeStock)
 }
 
 export async function createStock(stockData: {
@@ -56,72 +30,72 @@ export async function createStock(stockData: {
   pricePerBox: number
   categoryId: number
 }) {
-  const { data, error } = await requireSupabase()
-    .from("stocks")
-    .insert({
-      design_name: stockData.designName,
-      type: stockData.type,
-      size: stockData.size,
-      total_boxes: stockData.totalBoxes,
-      price_per_box: stockData.pricePerBox,
-      category_id: stockData.categoryId,
-    })
-    .select("id, design_name, size, type, total_boxes, price_per_box, category_id, created_at, updated_at")
-    .single()
-
-  if (error) {
-    const errorMessage = error.message.toLowerCase()
-    if (errorMessage.includes("foreign key") && errorMessage.includes("category_id")) {
-      throw new Error("Invalid category: make sure product_categories has this id and FK is configured correctly.")
-    }
-    throw error
-  }
-  return mapStock(data as StockRow)
+  const result = await apiFetch<Stock>("/stocks", {
+    method: "POST",
+    body: JSON.stringify(stockData),
+  })
+  return normalizeStock(result)
 }
 
 export async function deleteStock(id: number) {
-  const { error } = await requireSupabase().from("stocks").delete().eq("id", id)
-  if (error) throw error
+  return apiFetch<void>(`/stocks/${id}`, { method: "DELETE" })
+}
+
+export async function getLowStockItems(threshold = 10): Promise<Stock[]> {
+  const data = await apiFetch<Stock[]>(`/stocks/low-stock?threshold=${threshold}`)
+  return data.map(normalizeStock)
 }
 
 export async function uploadStockExcel(file: File, categoryId: number) {
   if (!file.name.endsWith(".csv")) {
-    throw new Error("Only CSV upload is supported in Supabase mode. Please use .csv template.")
+    throw new Error("Only CSV upload is supported. Please use a .csv file.")
   }
 
   const text = await file.text()
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const rows = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
 
-  if (rows.length < 2) {
-    throw new Error("CSV file is empty or invalid")
-  }
+  if (rows.length < 2) throw new Error("CSV file is empty or has no data rows.")
 
   const headers = rows[0].split(",").map((h) => h.trim().toLowerCase())
-  const expected = ["design_name", "type", "size", "total_boxes", "price_per_box"]
-  const missing = expected.filter((key) => !headers.includes(key))
-  if (missing.length > 0) {
-    throw new Error(`Missing required CSV columns: ${missing.join(", ")}`)
-  }
 
-  const index = (name: string) => headers.indexOf(name)
+  // Support both 4-column (your template) and 5-column (with price) formats
+  const required4 = ["design_name", "type", "size", "total_boxes"]
+  const missing = required4.filter((k) => !headers.includes(k))
+  if (missing.length > 0) throw new Error(`Missing required CSV columns: ${missing.join(", ")}`)
 
-  const inserts = rows.slice(1).map((row) => {
+  const idx = (name: string) => headers.indexOf(name)
+
+  const stocks = rows.slice(1).map((row) => {
     const cols = row.split(",").map((c) => c.trim())
     return {
-      design_name: cols[index("design_name")],
-      type: cols[index("type")],
-      size: cols[index("size")],
-      total_boxes: Number(cols[index("total_boxes")]),
-      price_per_box: Number(cols[index("price_per_box")]),
-      category_id: categoryId,
+      designName: cols[idx("design_name")],
+      type: cols[idx("type")],
+      size: cols[idx("size")],
+      totalBoxes: Number(cols[idx("total_boxes")]),
+      // price_per_box column is optional — default to 0 if not present
+      pricePerBox: idx("price_per_box") >= 0 ? Number(cols[idx("price_per_box")]) : 0,
+      categoryId,
     }
   })
 
-  const { error } = await requireSupabase().from("stocks").insert(inserts)
-  if (error) throw error
+  let inserted = 0
+  const errors: string[] = []
 
-  return { inserted: inserts.length }
+  for (const stock of stocks) {
+    try {
+      await apiFetch<unknown>("/stocks", {
+        method: "POST",
+        body: JSON.stringify(stock),
+      })
+      inserted++
+    } catch (err) {
+      errors.push(`"${stock.designName}": ${err instanceof Error ? err.message : "failed"}`)
+    }
+  }
+
+  if (errors.length > 0 && inserted === 0) {
+    throw new Error(`All rows failed:\n${errors.join("\n")}`)
+  }
+
+  return { inserted, errors }
 }
