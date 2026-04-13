@@ -1,5 +1,4 @@
 import { apiFetch } from "@/lib/api"
-import type { BillItem } from "@/lib/types"
 
 export async function checkBillNumberExists(billNumber: string) {
   return apiFetch<{ exists: boolean }>("/bills/check-bill-number", {
@@ -8,11 +7,20 @@ export async function checkBillNumberExists(billNumber: string) {
   })
 }
 
+// Takes cart items exactly as sales/page.tsx builds them and maps to Java field names
 export async function createBill(billData: {
   billNumber: string
   customerName: string
   customerPhone: string
-  items: BillItem[]
+  items: {
+    stockId: number
+    design_name: string  // sales page uses design_name
+    size: string
+    type: string
+    boxes: number        // sales page uses boxes
+    price: number        // sales page uses price
+    total: number        // sales page uses total
+  }[]
   subtotal: number
   gstRate: number
   gstType?: "INCLUSIVE" | "EXCLUSIVE"
@@ -20,26 +28,26 @@ export async function createBill(billData: {
   discountAmount: number
   totalAmount: number
 }) {
-  // Map field names to match what the Java backend expects
   return apiFetch("/bills", {
     method: "POST",
     body: JSON.stringify({
-      billNumber: billData.billNumber,
+      billNumber:   billData.billNumber,
       customerName: billData.customerName,
-      phoneNumber: billData.customerPhone,
-      subtotal: billData.subtotal,
-      gstRate: billData.gstRate,
-      gstType: billData.gstType ?? "EXCLUSIVE",
-      gstAmount: billData.gstAmount,
-      discount: billData.discountAmount,
-      totalAmount: billData.totalAmount,
+      phoneNumber:  billData.customerPhone,
+      subtotal:     billData.subtotal,
+      gstRate:      billData.gstRate,
+      gstType:      billData.gstType ?? "EXCLUSIVE",
+      gstAmount:    billData.gstAmount,
+      discount:     billData.discountAmount,
+      totalAmount:  billData.totalAmount,
       items: billData.items.map(item => ({
-        designName: item.designName,
-        size: item.size,
-        type: item.type,
-        quantityBoxes: item.noOfBoxes,
-        pricePerBox: item.pricePerBox,
-        totalPrice: item.totalAmount,
+        stockId:       item.stockId,       // ← sends stockId so backend can deduct stock
+        designName:    item.design_name,   // design_name → designName
+        size:          item.size,
+        type:          item.type,
+        quantityBoxes: item.boxes,         // boxes → quantityBoxes
+        pricePerBox:   item.price,         // price → pricePerBox
+        totalPrice:    item.total,         // total → totalPrice
       })),
     }),
   })

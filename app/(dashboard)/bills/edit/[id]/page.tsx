@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,15 +12,6 @@ import { Plus, Trash2, Edit, AlertCircle, Save, Search } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NavigationHeader } from "@/components/layout/navigation-header"
-
-interface StockItem {
-  id: string
-  design_name: string
-  size: string
-  type: string
-  remaining: number
-  price: number
-}
 
 interface CartItem {
   id: string
@@ -33,108 +24,197 @@ interface CartItem {
 }
 
 export default function EditBillPage() {
-  const params = useParams()
   const router = useRouter()
 
+  // Controls whether we show the search form or the edit form
   const [showSearchForm, setShowSearchForm] = useState(true)
+
+  // Search form fields
   const [searchBillNumber, setSearchBillNumber] = useState("")
-  const [searchCustomerName, setSearchCustomerName] = useState("")
-  const [searchCustomerPhone, setSearchCustomerPhone] = useState("")
   const [searchError, setSearchError] = useState("")
-  const [billFound, setBillFound] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+
+  // The bill data loaded from the API
   const [billData, setBillData] = useState({
     bill_number: "",
     customer_name: "",
     customer_phone: "",
-    cart_items: [] as CartItem[],
   })
 
-  const [selectedStock, setSelectedStock] = useState<StockItem | null>(null)
-  const [boxQuantity, setBoxQuantity] = useState("")
-  const [customPrice, setCustomPrice] = useState("")
-  const [gstEnabled, setGstEnabled] = useState(true)
+  // Cart items for the bill
+  const [cartItems, setCartItems] = useState<CartItem[]>([])
+
+  // Item editing state
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editBoxes, setEditBoxes] = useState("")
+  const [editPrice, setEditPrice] = useState("")
+
+  // GST state
+  const [gstEnabled, setGstEnabled] = useState(false)
   const [gstRate, setGstRate] = useState("18")
   const [gstType, setGstType] = useState<"exclusive" | "inclusive">("exclusive")
-  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+
+  // Validation errors
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [searchQuery, setSearchQuery] = useState("") // Declared setSearchQuery here
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState("")
 
-  const stocks: StockItem[] = [
-    { id: "1", design_name: "Premium Marble Tile", size: "600x600mm", type: "Floor Tile", remaining: 55, price: 850 },
-    { id: "2", design_name: "Designer Sanitary Ware", size: "Model A23", type: "Washbasin", remaining: 3, price: 1200 },
-    { id: "3", design_name: "Classic Floor Tile", size: "300x300mm", type: "Floor Tile", remaining: 80, price: 450 },
-    { id: "4", design_name: "Premium Glossy Tile", size: "800x800mm", type: "Wall Tile", remaining: 42, price: 1100 },
-    { id: "5", design_name: "Modern Toilet Suite", size: "Model B45", type: "Toilet", remaining: 12, price: 2500 },
-  ]
+  // ─── STEP 1: Search for bill by bill number ───────────────────────────────
+  // This function calls the real API. "async" means it can use "await" inside.
+  const handleSearchBill = async () => {
+    if (!searchBillNumber.trim()) {
+      setSearchError("Please enter a bill number to search")
+      return
+    }
 
-  const [cartItems, setCartItems] = useState<CartItem[]>(billData.cart_items)
+    setSearchError("")
+    setIsSearching(true)
 
-  const filteredStocks = stocks.filter((stock) => stock.design_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    try {
+      // Call the Java backend: GET /api/bills/number/INV-20260412-001
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"}/bills/number/${searchBillNumber.trim()}`
+      )
 
-  const handleStockSelect = (stock: StockItem) => {
-    setSelectedStock(stock)
-    setCustomPrice(stock.price.toString())
-    setBoxQuantity("")
-    setSearchQuery("") // Use setSearchQuery here
+      if (!res.ok) {
+        setSearchError(`Bill "${searchBillNumber}" not found. Please check the bill number.`)
+        return
+      }
+
+      const bill = await res.json()
+
+      // Fill in the bill data from the real API response
+      setBillData({
+        bill_number:   bill.billNumber,
+        customer_name: bill.customerName,
+        customer_phone: bill.phoneNumber,
+      })
+
+      // Fill in the cart items from the real API response
+      // bill.items comes from Java as: { id, designName, size, type, quantityBoxes, pricePerBox, totalPrice }
+      // We map them to the CartItem shape this page uses
+      setCartItems(
+        (bill.items ?? []).map((item: any) => ({
+          id:          String(item.id),
+          design_name: item.designName,
+          size:        item.size,
+          type:        item.type,
+          boxes:       item.quantityBoxes,
+          pricePerBox: item.pricePerBox,
+          total:       item.totalPrice,
+        }))
+      )
+
+      // Also set GST from the bill if it was saved with GST
+      if (bill.gstRate && bill.gstRate > 0) {
+        setGstEnabled(true)
+        setGstRate(String(bill.gstRate))
+        setGstType(bill.gstType === "INCLUSIVE" ? "inclusive" : "exclusive")
+      }
+
+      // Switch from search form to edit form
+      setShowSearchForm(false)
+
+    } catch (e) {
+      setSearchError("Could not connect to server. Make sure the backend is running.")
+    } finally {
+      setIsSearching(false)
+    }
   }
 
-  const handleAddToCart = () => {
-    if (!selectedStock || !boxQuantity || Number.parseInt(boxQuantity) <= 0) {
-      alert("Please select a stock item and enter valid quantity")
+  // ─── STEP 2: Cart item editing ────────────────────────────────────────────
+  const handleEditItem = (item: CartItem) => {
+    setEditingItemId(item.id)
+    setEditBoxes(item.boxes.toString())
+    setEditPrice(item.pricePerBox.toString())
+  }
+
+  const handleUpdateItem = (id: string) => {
+    const boxes = Number.parseInt(editBoxes)
+    const pricePerBox = Number.parseFloat(editPrice)
+
+    if (!boxes || boxes <= 0 || !pricePerBox || pricePerBox <= 0) {
+      alert("Please enter valid values")
       return
     }
 
-    const boxes = Number.parseInt(boxQuantity)
-    const pricePerBox = Number.parseFloat(customPrice) || selectedStock.price
-
-    if (boxes > selectedStock.remaining) {
-      alert(`Only ${selectedStock.remaining} boxes available in stock`)
-      return
-    }
-
-    const newItem: CartItem = {
-      id: Date.now().toString(),
-      design_name: selectedStock.design_name,
-      size: selectedStock.size,
-      type: selectedStock.type,
-      boxes,
-      pricePerBox,
-      total: boxes * pricePerBox,
-    }
-
-    setCartItems([...cartItems, newItem])
-    setSelectedStock(null)
-    setBoxQuantity("")
-    setCustomPrice("")
+    setCartItems(
+      cartItems.map((item) =>
+        item.id === id
+          ? { ...item, boxes, pricePerBox, total: boxes * pricePerBox }
+          : item
+      )
+    )
+    setEditingItemId(null)
+    setEditBoxes("")
+    setEditPrice("")
   }
 
   const handleRemoveItem = (id: string) => {
     setCartItems(cartItems.filter((item) => item.id !== id))
   }
 
-  const handleEditItem = (item: CartItem) => {
-    setEditingItemId(item.id)
-    setBoxQuantity(item.boxes.toString())
-    setCustomPrice(item.pricePerBox.toString())
+  // ─── STEP 3: Save the updated bill ───────────────────────────────────────
+  const validateForm = () => {
+    const errors: string[] = []
+    if (!billData.customer_name.trim()) errors.push("Customer name is required")
+    if (!billData.customer_phone.trim()) errors.push("Phone number is required")
+    if (cartItems.length === 0) errors.push("Add at least one item to cart")
+    setValidationErrors(errors)
+    return errors.length === 0
   }
 
-  const handleUpdateItem = (id: string) => {
-    const boxes = Number.parseInt(boxQuantity)
-    const pricePerBox = Number.parseFloat(customPrice)
+  const handleSaveBill = async () => {
+    if (!validateForm()) return
 
-    if (boxes <= 0 || pricePerBox <= 0) {
-      alert("Please enter valid values")
-      return
+    setIsSaving(true)
+    setSaveSuccess("")
+
+    try {
+      // Call the Java backend: PUT /api/bills/INV-20260412-001
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"}/bills/${billData.bill_number}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            billNumber:   billData.bill_number,
+            customerName: billData.customer_name,
+            phoneNumber:  billData.customer_phone,
+            subtotal:     subtotal,
+            gstRate:      gstEnabled ? Number.parseFloat(gstRate) : 0,
+            gstType:      gstEnabled ? gstType.toUpperCase() : "EXCLUSIVE",
+            gstAmount:    gstAmount,
+            discount:     0,
+            totalAmount:  finalTotal,
+            items: cartItems.map(item => ({
+              designName:    item.design_name,
+              size:          item.size,
+              type:          item.type,
+              quantityBoxes: item.boxes,
+              pricePerBox:   item.pricePerBox,
+              totalPrice:    item.total,
+            })),
+          }),
+        }
+      )
+
+      if (!res.ok) {
+        alert("Failed to save bill. Please try again.")
+        return
+      }
+
+      setSaveSuccess(`✅ Bill ${billData.bill_number} updated successfully!`)
+      setValidationErrors([])
+
+    } catch (e) {
+      alert("Could not connect to server. Make sure the backend is running.")
+    } finally {
+      setIsSaving(false)
     }
-
-    setCartItems(
-      cartItems.map((item) => (item.id === id ? { ...item, boxes, pricePerBox, total: boxes * pricePerBox } : item)),
-    )
-    setEditingItemId(null)
-    setBoxQuantity("")
-    setCustomPrice("")
   }
 
+  // ─── Totals calculation ──────────────────────────────────────────────────
   const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0)
 
   let gstAmount = 0
@@ -151,70 +231,14 @@ export default function EditBillPage() {
     }
   }
 
-  const validateForm = () => {
-    const errors: string[] = []
-
-    if (!billData.bill_number.trim()) errors.push("Bill number is required")
-    if (!billData.customer_name.trim()) errors.push("Customer name is required")
-    if (!billData.customer_phone.trim()) errors.push("Phone number is required")
-    if (cartItems.length === 0) errors.push("Add at least one item to cart")
-
-    setValidationErrors(errors)
-    return errors.length === 0
-  }
-
-  const handleSaveBill = () => {
-    if (validateForm()) {
-      alert("Bill updated successfully!")
-      router.push("/bills")
-    }
-  }
-
-  const handleSearchBill = () => {
-    if (!searchBillNumber.trim() && !searchCustomerName.trim() && !searchCustomerPhone.trim()) {
-      setSearchError("Please enter at least one search criteria (Bill Number, Customer Name, or Phone Number)")
-      return
-    }
-
-    setSearchError("")
-    // In real app, search database with these criteria
-    // For now, just show the edit form
-    setShowSearchForm(false)
-    setBillFound(true)
-    setBillData({
-      bill_number: "INV-20250115-001",
-      customer_name: "Rajesh Kumar",
-      customer_phone: "+91 98765 43210",
-      cart_items: [
-        {
-          id: "1",
-          design_name: "Premium Marble Tile",
-          size: "600x600mm",
-          type: "Floor Tile",
-          boxes: 5,
-          pricePerBox: 850,
-          total: 4250,
-        },
-        {
-          id: "2",
-          design_name: "Classic Floor Tile",
-          size: "300x300mm",
-          type: "Floor Tile",
-          boxes: 3,
-          pricePerBox: 450,
-          total: 1350,
-        },
-      ],
-    })
-  }
-
+  // ─── SEARCH FORM (shown first) ────────────────────────────────────────────
   if (showSearchForm) {
     return (
       <div className="min-h-screen bg-background">
         <NavigationHeader
           items={[{ label: "Bills & Invoices", href: "/bills" }, { label: "Edit Bill" }]}
           title="Search Bill"
-          description="Enter at least one search criteria to find the bill"
+          description="Enter the bill number to find and edit it"
         />
 
         <main className="container mx-auto px-4 py-8 max-w-2xl">
@@ -222,7 +246,7 @@ export default function EditBillPage() {
             <CardHeader>
               <CardTitle>Find Bill to Edit</CardTitle>
               <CardDescription>
-                Enter bill number, customer name, or phone number (at least one required)
+                Enter the bill number (e.g. INV-20260412-001)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -237,40 +261,17 @@ export default function EditBillPage() {
                 <Label htmlFor="search_bill_number">Bill Number</Label>
                 <Input
                   id="search_bill_number"
-                  placeholder="INV-20250115-001"
+                  placeholder="INV-20260412-001"
                   value={searchBillNumber}
                   onChange={(e) => setSearchBillNumber(e.target.value)}
-                />
-              </div>
-
-              <div className="text-center text-sm text-muted-foreground">OR</div>
-
-              <div className="space-y-2">
-                <Label htmlFor="search_customer_name">Customer Name</Label>
-                <Input
-                  id="search_customer_name"
-                  placeholder="Enter customer name"
-                  value={searchCustomerName}
-                  onChange={(e) => setSearchCustomerName(e.target.value)}
-                />
-              </div>
-
-              <div className="text-center text-sm text-muted-foreground">OR</div>
-
-              <div className="space-y-2">
-                <Label htmlFor="search_customer_phone">Phone Number</Label>
-                <Input
-                  id="search_customer_phone"
-                  placeholder="+91 98765 43210"
-                  value={searchCustomerPhone}
-                  onChange={(e) => setSearchCustomerPhone(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSearchBill() }}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button onClick={handleSearchBill} className="flex-1">
+                <Button onClick={handleSearchBill} className="flex-1" disabled={isSearching}>
                   <Search className="h-4 w-4 mr-2" />
-                  Search Bill
+                  {isSearching ? "Searching..." : "Search Bill"}
                 </Button>
                 <Button variant="outline" onClick={() => router.push("/bills")} className="flex-1">
                   Cancel
@@ -283,6 +284,7 @@ export default function EditBillPage() {
     )
   }
 
+  // ─── EDIT FORM (shown after bill is found) ────────────────────────────────
   return (
     <div className="min-h-screen bg-background">
       <NavigationHeader
@@ -290,14 +292,16 @@ export default function EditBillPage() {
         title="Edit Bill"
         description={`Bill Number: ${billData.bill_number}`}
         action={
-          <Button onClick={handleSaveBill}>
+          <Button onClick={handleSaveBill} disabled={isSaving}>
             <Save className="h-4 w-4 mr-2" />
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         }
       />
 
       <main className="container mx-auto px-4 py-8 max-w-[1800px]">
+
+        {/* Bill Information */}
         <Card className="mb-6 max-w-4xl mx-auto">
           <CardHeader className="pb-4">
             <CardTitle>Bill Information</CardTitle>
@@ -305,11 +309,10 @@ export default function EditBillPage() {
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="bill_number">Bill Number *</Label>
+                <Label htmlFor="bill_number">Bill Number</Label>
                 <Input
                   id="bill_number"
                   value={billData.bill_number}
-                  onChange={(e) => setBillData({ ...billData, bill_number: e.target.value })}
                   disabled
                 />
               </div>
@@ -336,107 +339,17 @@ export default function EditBillPage() {
         </Card>
 
         <div className="grid lg:grid-cols-[1fr_380px] gap-6 max-w-6xl mx-auto">
+          {/* Left column — cart */}
           <div className="space-y-6">
-            {/* Add Items Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Add Items</CardTitle>
-                <CardDescription>Search and add items to cart</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="search_design">Search Design Name</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="search_design"
-                      placeholder="Type design name..."
-                      className="pl-9"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-
-                  {searchQuery && filteredStocks.length > 0 && (
-                    <div className="border rounded-md max-h-40 overflow-y-auto">
-                      {filteredStocks.map((stock) => (
-                        <div
-                          key={stock.id}
-                          className="p-2.5 hover:bg-muted cursor-pointer border-b last:border-b-0"
-                          onClick={() => handleStockSelect(stock)}
-                        >
-                          <div className="font-medium text-sm">{stock.design_name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {stock.size} • {stock.type} • {stock.remaining} boxes available
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {selectedStock && (
-                  <div className="p-3 bg-muted rounded-lg space-y-3">
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Size</p>
-                        <p className="font-medium">{selectedStock.size}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Type</p>
-                        <p className="font-medium">{selectedStock.type}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Available</p>
-                        <p className="font-medium">{selectedStock.remaining} boxes</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="box_quantity" className="text-sm">
-                          No. of Boxes
-                        </Label>
-                        <Input
-                          id="box_quantity"
-                          type="number"
-                          placeholder="Qty"
-                          value={boxQuantity}
-                          onChange={(e) => setBoxQuantity(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="custom_price" className="text-sm">
-                          Amount per Box (₹)
-                        </Label>
-                        <Input
-                          id="custom_price"
-                          type="number"
-                          placeholder="Price"
-                          value={customPrice}
-                          onChange={(e) => setCustomPrice(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <Button onClick={handleAddToCart} className="w-full" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add to Cart
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Shopping Cart Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Shopping Cart ({cartItems.length})</CardTitle>
+                <CardTitle>Cart Items ({cartItems.length})</CardTitle>
+                <CardDescription>Edit quantities or prices, or remove items</CardDescription>
               </CardHeader>
               <CardContent>
                 {cartItems.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground text-sm">
-                    No items in cart. Add items to continue.
+                    No items in this bill.
                   </div>
                 ) : (
                   <div className="rounded-md border">
@@ -445,42 +358,81 @@ export default function EditBillPage() {
                         <TableRow>
                           <TableHead className="w-[35%]">Design</TableHead>
                           <TableHead className="w-[15%]">Size</TableHead>
-                          <TableHead className="w-[15%] text-right">Boxes</TableHead>
-                          <TableHead className="w-[15%] text-right">Price</TableHead>
+                          <TableHead className="w-[12%] text-right">Boxes</TableHead>
+                          <TableHead className="w-[15%] text-right">Price/Box</TableHead>
                           <TableHead className="w-[15%] text-right">Total</TableHead>
-                          <TableHead className="w-[5%]"></TableHead>
+                          <TableHead className="w-[8%]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {cartItems.map((item) => (
                           <TableRow key={item.id}>
-                            <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
-                            <TableCell className="text-sm">{item.size}</TableCell>
-                            <TableCell className="text-right text-sm">{item.boxes}</TableCell>
-                            <TableCell className="text-right text-sm">₹{item.pricePerBox}</TableCell>
-                            <TableCell className="text-right font-medium text-sm">
-                              ₹{item.total.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7"
-                                  onClick={() => handleEditItem(item)}
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7"
-                                  onClick={() => handleRemoveItem(item.id)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                            {editingItemId === item.id ? (
+                              // Inline edit row
+                              <>
+                                <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
+                                <TableCell className="text-sm">{item.size}</TableCell>
+                                <TableCell className="text-right">
+                                  <Input
+                                    type="number"
+                                    value={editBoxes}
+                                    onChange={(e) => setEditBoxes(e.target.value)}
+                                    className="w-16 h-7 text-right text-sm"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Input
+                                    type="number"
+                                    value={editPrice}
+                                    onChange={(e) => setEditPrice(e.target.value)}
+                                    className="w-20 h-7 text-right text-sm"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right text-sm font-medium">
+                                  ₹{(Number(editBoxes || 0) * Number(editPrice || 0)).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => handleUpdateItem(item.id)}
+                                  >
+                                    Save
+                                  </Button>
+                                </TableCell>
+                              </>
+                            ) : (
+                              // Normal display row
+                              <>
+                                <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
+                                <TableCell className="text-sm">{item.size}</TableCell>
+                                <TableCell className="text-right text-sm">{item.boxes}</TableCell>
+                                <TableCell className="text-right text-sm">₹{item.pricePerBox}</TableCell>
+                                <TableCell className="text-right font-medium text-sm">
+                                  ₹{item.total.toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7"
+                                      onClick={() => handleEditItem(item)}
+                                    >
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7"
+                                      onClick={() => handleRemoveItem(item.id)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -491,12 +443,19 @@ export default function EditBillPage() {
             </Card>
           </div>
 
-          {/* Bill Summary Section - Right Side */}
+          {/* Right column — Bill Summary */}
           <Card className="h-fit">
             <CardHeader>
               <CardTitle>Bill Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+
+              {saveSuccess && (
+                <div className="bg-green-50 border border-green-300 text-green-800 rounded-md p-3 text-sm font-medium">
+                  {saveSuccess}
+                </div>
+              )}
+
               {validationErrors.length > 0 && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
@@ -513,7 +472,7 @@ export default function EditBillPage() {
 
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Items in Cart</span>
+                  <span className="text-muted-foreground">Items</span>
                   <span className="font-medium">{cartItems.length}</span>
                 </div>
                 <div className="flex justify-between">
@@ -529,9 +488,7 @@ export default function EditBillPage() {
                         checked={gstEnabled}
                         onCheckedChange={(checked) => setGstEnabled(checked as boolean)}
                       />
-                      <Label htmlFor="gst" className="cursor-pointer">
-                        Apply GST
-                      </Label>
+                      <Label htmlFor="gst" className="cursor-pointer">Apply GST</Label>
                     </div>
                   </div>
 
@@ -566,12 +523,8 @@ export default function EditBillPage() {
                       </div>
 
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          GST Amount ({gstRate}% {gstType})
-                        </span>
-                        <span className="font-medium">
-                          ₹{gstAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
+                        <span className="text-muted-foreground">GST ({gstRate}% {gstType})</span>
+                        <span className="font-medium">₹{gstAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                       </div>
                     </div>
                   )}
@@ -586,9 +539,9 @@ export default function EditBillPage() {
               </div>
 
               <div className="space-y-2 pt-4 border-t">
-                <Button className="w-full" onClick={handleSaveBill}>
+                <Button className="w-full" onClick={handleSaveBill} disabled={isSaving}>
                   <Save className="h-4 w-4 mr-2" />
-                  Save Bill Changes
+                  {isSaving ? "Saving..." : "Save Bill Changes"}
                 </Button>
                 <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/bills")}>
                   Cancel

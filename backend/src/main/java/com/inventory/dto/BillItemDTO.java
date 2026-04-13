@@ -2,6 +2,7 @@ package com.inventory.dto;
 
 public class BillItemDTO {
     private Long id;
+    private Long stockId;
     private String designName;
     private String size;
     private String type;
@@ -23,6 +24,9 @@ public class BillItemDTO {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getStockId() { return stockId; }
+    public void setStockId(Long stockId) { this.stockId = stockId; }
 
     public String getDesignName() { return designName; }
     public void setDesignName(String designName) { this.designName = designName; }

@@ -2,9 +2,12 @@ package com.inventory.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -15,8 +18,9 @@ public class BillItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "bill_id")
-    private Long billId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bill_id", nullable = false)
+    private Bill bill;
 
     @Column(name = "design_name", nullable = false)
     private String designName;
@@ -40,8 +44,8 @@ public class BillItem {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public Long getBillId() { return billId; }
-    public void setBillId(Long billId) { this.billId = billId; }
+    public Bill getBill() { return bill; }
+    public void setBill(Bill bill) { this.bill = bill; }
     public String getDesignName() { return designName; }
     public void setDesignName(String designName) { this.designName = designName; }
     public String getSize() { return size; }

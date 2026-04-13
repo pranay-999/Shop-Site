@@ -1,6 +1,8 @@
 package com.inventory.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -13,17 +15,34 @@ import com.inventory.dto.BillItemDTO;
 import com.inventory.model.Bill;
 import com.inventory.model.BillItem;
 import com.inventory.repository.BillRepository;
+import com.inventory.repository.StockRepository;
 
 @Service
 public class BillService {
 
     private final BillRepository billRepository;
+    private final StockRepository stockRepository;
 
-    public BillService(BillRepository billRepository) {
+    public BillService(BillRepository billRepository, StockRepository stockRepository) {
         this.billRepository = billRepository;
+        this.stockRepository = stockRepository;
     }
 
-    // Converts a BillItem (database row) → BillItemDTO (what we send to frontend)
+    // Generates the next bill number like INV-20260412-001
+    private String generateNextBillNumber() {
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String prefix = "INV-" + today + "-";
+        long todayCount = billRepository.findAll().stream()
+            .filter(b -> b.getBillNumber() != null && b.getBillNumber().startsWith(prefix))
+            .count();
+        return prefix + String.format("%03d", todayCount + 1);
+    }
+
+    // Public — called by BillController for /next-bill-number endpoint
+    public String getNextBillNumber() {
+        return generateNextBillNumber();
+    }
+
     private BillItemDTO itemToDTO(BillItem item) {
         int qty      = item.getQuantityBoxes() == null ? 0   : item.getQuantityBoxes();
         double price = item.getPricePerBox()   == null ? 0.0 : item.getPricePerBox();
@@ -31,7 +50,6 @@ public class BillService {
         return new BillItemDTO(item.getId(), item.getDesignName(), item.getSize(), item.getType(), qty, price, total);
     }
 
-    // Converts a Bill (database row) → BillDTO (what we send to frontend)
     private BillDTO toDTO(Bill bill) {
         List<BillItemDTO> items = bill.getItems() == null ? List.of() :
             bill.getItems().stream().map(this::itemToDTO).toList();
@@ -48,27 +66,42 @@ public class BillService {
         );
     }
 
-    // Converts a BillDTO (from frontend) → Bill (database row)
     private Bill toEntity(BillDTO dto) {
         Bill bill = new Bill();
-        bill.setBillNumber(dto.getBillNumber());
-        bill.setCustomerName(dto.getCustomerName());
-        bill.setPhoneNumber(dto.getPhoneNumber());
+
+        if (dto.getBillNumber() == null || dto.getBillNumber().trim().isEmpty())
+            throw new RuntimeException("Bill number is required");
+        if (dto.getCustomerName() == null || dto.getCustomerName().trim().isEmpty())
+            throw new RuntimeException("Customer name is required");
+        if (dto.getPhoneNumber() == null || dto.getPhoneNumber().trim().isEmpty())
+            throw new RuntimeException("Phone number is required");
+
+        bill.setBillNumber(dto.getBillNumber().trim());
+        bill.setCustomerName(dto.getCustomerName().trim());
+        bill.setPhoneNumber(dto.getPhoneNumber().trim());
         bill.setSubtotal(    dto.getSubtotal()    == null ? 0.0         : dto.getSubtotal());
         bill.setGstAmount(   dto.getGstAmount()   == null ? 0.0         : dto.getGstAmount());
         bill.setGstRate(     dto.getGstRate()     == null ? 0.0         : dto.getGstRate());
         bill.setGstType(     dto.getGstType()     == null ? "EXCLUSIVE" : dto.getGstType());
         bill.setDiscount(    dto.getDiscount()    == null ? 0.0         : dto.getDiscount());
         bill.setTotalAmount( dto.getTotalAmount() == null ? 0.0         : dto.getTotalAmount());
+
         if (dto.getItems() != null) {
             List<BillItem> items = dto.getItems().stream().map(itemDto -> {
                 BillItem item = new BillItem();
-                item.setDesignName(itemDto.getDesignName());
-                item.setSize(itemDto.getSize());
-                item.setType(itemDto.getType());
+                if (itemDto.getDesignName() == null || itemDto.getDesignName().trim().isEmpty())
+                    throw new RuntimeException("Item design name is required");
+                if (itemDto.getSize() == null || itemDto.getSize().trim().isEmpty())
+                    throw new RuntimeException("Item size is required");
+                if (itemDto.getType() == null || itemDto.getType().trim().isEmpty())
+                    throw new RuntimeException("Item type is required");
+                item.setDesignName(itemDto.getDesignName().trim());
+                item.setSize(itemDto.getSize().trim());
+                item.setType(itemDto.getType().trim());
                 item.setQuantityBoxes(itemDto.getQuantityBoxes() == null ? 0   : itemDto.getQuantityBoxes());
                 item.setPricePerBox(  itemDto.getPricePerBox()   == null ? 0.0 : itemDto.getPricePerBox());
                 item.setTotalPrice(   itemDto.getTotalPrice()    == null ? 0.0 : itemDto.getTotalPrice());
+                item.setBill(bill);
                 return item;
             }).collect(Collectors.toList());
             bill.setItems(items);
@@ -130,10 +163,27 @@ public class BillService {
 
     @Transactional
     public BillDTO createBill(BillDTO billDTO) {
-        if (billNumberExists(billDTO.getBillNumber())) {
+        if (billDTO.getBillNumber() == null || billDTO.getBillNumber().trim().isEmpty())
+            throw new RuntimeException("Bill number is required");
+        if (billNumberExists(billDTO.getBillNumber().trim()))
             throw new RuntimeException("Bill number already exists: " + billDTO.getBillNumber());
-        }
+
         Bill saved = billRepository.save(toEntity(billDTO));
+
+        // Deduct boxes from each stock item in the database
+        if (billDTO.getItems() != null) {
+            for (BillItemDTO item : billDTO.getItems()) {
+                if (item.getStockId() != null) {
+                    stockRepository.findById(item.getStockId()).ifPresent(stock -> {
+                        int currentBoxes = stock.getTotalBoxes() == null ? 0 : stock.getTotalBoxes();
+                        int soldBoxes    = item.getQuantityBoxes() == null ? 0 : item.getQuantityBoxes();
+                        stock.setTotalBoxes(Math.max(0, currentBoxes - soldBoxes));
+                        stockRepository.save(stock);
+                    });
+                }
+            }
+        }
+
         return toDTO(saved);
     }
 

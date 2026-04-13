@@ -10,7 +10,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -51,10 +50,9 @@ public class Bill {
     @Column(name = "total_amount", nullable = false)
     private Double totalAmount;
 
-    // This tells JPA: "bill_items rows with this bill's id belong to this bill"
-    // CascadeType.ALL means: save/delete bill items when bill is saved/deleted
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "bill_id")
+    // mappedBy = "bill" means: BillItem.bill field owns the relationship
+    // Hibernate will set bill_id on INSERT correctly — no extra UPDATE needed
+    @OneToMany(mappedBy = "bill", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BillItem> items = new ArrayList<>();
 
     @Column(name = "created_at")

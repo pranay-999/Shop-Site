@@ -50,6 +50,12 @@ public class BillController {
     public ResponseEntity<List<BillDTO>> searchByPhone(@PathVariable String phoneNumber) {
         return ResponseEntity.ok(billService.searchByPhone(phoneNumber));
     }
+
+    // Returns next auto-generated bill number — frontend calls this on page load
+    @GetMapping("/next-bill-number")
+    public ResponseEntity<Map<String, String>> getNextBillNumber() {
+        return ResponseEntity.ok(Map.of("billNumber", billService.getNextBillNumber()));
+    }
     
     @PostMapping
     public ResponseEntity<BillDTO> createBill(@RequestBody BillDTO billDTO) {
