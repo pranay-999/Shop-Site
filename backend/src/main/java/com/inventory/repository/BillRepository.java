@@ -19,7 +19,9 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     List<Bill> findByPhoneNumber(String phoneNumber);
     List<Bill> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
-    // Find all bills that contain at least one item with the given design name (case-insensitive)
-    @Query("SELECT DISTINCT b FROM Bill b JOIN b.items i WHERE LOWER(i.designName) LIKE LOWER(CONCAT('%', :designName, '%'))")
-List<Bill> findBillsByDesignName(@Param("designName") String designName);
+    // ✅ FIXED: Use exact match (=) instead of LIKE '%...%'
+    // The old LIKE query caused every stock item to appear "linked to bills"
+    // because partial matches like "White" would match "Off-White Tiles" etc.
+    @Query("SELECT DISTINCT b FROM Bill b JOIN b.items i WHERE LOWER(i.designName) = LOWER(:designName)")
+    List<Bill> findBillsByDesignName(@Param("designName") String designName);
 }

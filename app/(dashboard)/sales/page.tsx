@@ -28,6 +28,7 @@ import {
   Eye,
   AlertCircle,
   Search,
+  Printer,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -80,6 +81,13 @@ export default function NewSalePage() {
   // baseCartPrices stores the ORIGINAL price the user typed — before any GST adjustment
   const [baseCartPrices, setBaseCartPrices] = useState<Record<string, number>>({});
   const [saleSuccessMessage, setSaleSuccessMessage] = useState("");
+  // NEW: Print after sale state
+  const [printAfterSaleOpen, setPrintAfterSaleOpen] = useState(false)
+  const [completedBillData, setCompletedBillData] = useState<{
+    billNumber: string; customerName: string; customerPhone: string;
+    items: typeof cartItems; subtotal: number; gstRate: number;
+    gstType: string | undefined; gstAmount: number; grandTotal: number;
+  } | null>(null)
   const [addToCartError, setAddToCartError] = useState("");
 
   // Auto-load next bill number on page load
@@ -248,7 +256,6 @@ export default function NewSalePage() {
         billNumber,
         customerName,
         customerPhone,
-        // Pass originalPrice alongside price — bills.ts uses originalPrice for DB storage
         items: cartItems.map((item) => ({
           ...item,
           originalPrice: baseCartPrices[item.id] ?? item.price,
@@ -261,9 +268,21 @@ export default function NewSalePage() {
         totalAmount: grandTotal,
       });
 
+      // Bill saved! Now capture data for print preview and show the dialog
+      setCompletedBillData({
+        billNumber,
+        customerName,
+        customerPhone,
+        items: cartItems,
+        subtotal,
+        gstRate: gstEnabled ? Number.parseFloat(gstRate) : 0,
+        gstType: gstEnabled ? gstType : undefined,
+        gstAmount,
+        grandTotal,
+      });
+
       const res = await fetch(`${API}/bills/next-bill-number`);
       const data = await res.json();
-
       setSaleSuccessMessage(`✅ Bill ${billNumber} saved successfully!`);
       setBillNumber(data.billNumber);
       setCustomerName("");
@@ -272,9 +291,65 @@ export default function NewSalePage() {
       setBaseCartPrices({});
       setGstEnabled(false);
       setViewBillOpen(false);
+      setPrintAfterSaleOpen(true); // open print dialog AFTER saving
     } catch {
       setValidationErrors(["Failed to save bill. Please check your connection and try again."]);
     }
+  };
+
+  const saveBillAndReset = async (shouldPrint: boolean) => {
+    if (shouldPrint && completedBillData) {
+      const bill = completedBillData;
+      const win = window.open("", "_blank");
+      if (win) {
+        const html = `
+          <div style="font-family:Arial,sans-serif; padding:32px; max-width:620px; margin:0 auto; border:1px solid #e0e0e0;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;">
+              <div>
+                <h2 style="margin:0; font-size:22px;">INVOICE</h2>
+                <p style="margin:4px 0 0; color:#555; font-size:13px;">Bill No: <strong>${bill.billNumber}</strong></p>
+              </div>
+              <div style="text-align:right; font-size:13px; color:#555;">
+                <p style="margin:0;">Date: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+              </div>
+            </div>
+            <div style="margin-bottom:16px; font-size:14px;">
+              <p style="margin:0;"><strong>Customer:</strong> ${bill.customerName}</p>
+              <p style="margin:4px 0 0;"><strong>Phone:</strong> ${bill.customerPhone}</p>
+            </div>
+            <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
+              <thead style="background:#f5f5f5;">
+                <tr>
+                  <th style="text-align:left;">Design</th><th style="text-align:left;">Size</th>
+                  <th style="text-align:left;">Type</th><th style="text-align:right;">Boxes</th>
+                  <th style="text-align:right;">Price/Box</th><th style="text-align:right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bill.items.map((item) => `
+                  <tr>
+                    <td>${item.design_name}</td><td>${item.size}</td><td>${item.type}</td>
+                    <td style="text-align:right;">${item.boxes}</td>
+                    <td style="text-align:right;">₹${item.price}</td>
+                    <td style="text-align:right;">₹${item.total.toLocaleString("en-IN")}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+            <div style="text-align:right; font-size:14px;">
+              <p style="margin:4px 0;">Subtotal: ₹${bill.subtotal.toLocaleString("en-IN")}</p>
+              ${bill.gstAmount > 0 ? `<p style="margin:4px 0;">GST (${bill.gstRate}%): ₹${bill.gstAmount.toLocaleString("en-IN")}</p>` : ""}
+              <p style="margin:8px 0 0; font-size:17px; font-weight:bold; border-top:1px solid #111; padding-top:8px;">
+                Total: ₹${bill.grandTotal.toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>`;
+        win.document.write(`<html><head><title>Invoice ${bill.billNumber}</title><style>@media print{body{margin:0;}}</style></head><body style="background:#fff; padding:24px;">${html}</body></html>`);
+        win.document.close();
+        setTimeout(() => win.print(), 300);
+      }
+    }
+    setPrintAfterSaleOpen(false);
+    setCompletedBillData(null);
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0);
@@ -626,6 +701,74 @@ export default function NewSalePage() {
               <Button onClick={() => setViewBillOpen(false)} variant="outline" className="flex-1">Edit</Button>
               <Button onClick={handleCompleteSale} className="flex-1">Confirm & Complete</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* ── Print or Save Dialog (shown after completing a sale) ─────────── */}
+      <Dialog open={printAfterSaleOpen} onOpenChange={(open) => { if (!open) { setPrintAfterSaleOpen(false); setCompletedBillData(null); } }}>
+        <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Sale Complete — Bill {completedBillData?.billNumber}</DialogTitle>
+            <DialogDescription>Review the bill below. Would you like to print it before saving?</DialogDescription>
+          </DialogHeader>
+
+          {completedBillData && (
+            <div className="border rounded-lg p-4 font-sans text-sm my-2">
+              <div className="flex justify-between items-start border-b-2 border-black pb-3 mb-3">
+                <div>
+                  <h3 className="text-lg font-bold">INVOICE</h3>
+                  <p className="text-xs text-muted-foreground">Bill No: <strong>{completedBillData.billNumber}</strong></p>
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  <p>Date: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                </div>
+              </div>
+              <div className="mb-3">
+                <p><strong>Customer:</strong> {completedBillData.customerName}</p>
+                <p><strong>Phone:</strong> {completedBillData.customerPhone}</p>
+              </div>
+              <table className="w-full border-collapse text-xs mb-3">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="border p-2 text-left">Design</th>
+                    <th className="border p-2 text-left">Size</th>
+                    <th className="border p-2 text-left">Type</th>
+                    <th className="border p-2 text-right">Boxes</th>
+                    <th className="border p-2 text-right">Price/Box</th>
+                    <th className="border p-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedBillData.items.map((item, i) => (
+                    <tr key={i}>
+                      <td className="border p-2">{item.design_name}</td>
+                      <td className="border p-2">{item.size}</td>
+                      <td className="border p-2">{item.type}</td>
+                      <td className="border p-2 text-right">{item.boxes}</td>
+                      <td className="border p-2 text-right">₹{item.price}</td>
+                      <td className="border p-2 text-right">₹{item.total.toLocaleString("en-IN")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="text-right text-sm space-y-1">
+                <p>Subtotal: ₹{completedBillData.subtotal.toLocaleString("en-IN")}</p>
+                {completedBillData.gstAmount > 0 && (
+                  <p>GST ({completedBillData.gstRate}%): ₹{completedBillData.gstAmount.toLocaleString("en-IN")}</p>
+                )}
+                <p className="font-bold text-base border-t pt-2">Total: ₹{completedBillData.grandTotal.toLocaleString("en-IN")}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2 border-t">
+            <Button variant="outline" className="flex-1" onClick={() => saveBillAndReset(false)}>
+              Close
+            </Button>
+            <Button className="flex-1" onClick={() => saveBillAndReset(true)}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print Bill
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

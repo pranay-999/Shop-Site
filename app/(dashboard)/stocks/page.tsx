@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Trash2, Package, FileText, X, AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react"
+import { Search, Plus, Trash2, Package, FileText, X, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { NavigationHeader } from "@/components/layout/navigation-header"
 import { getStocks, deleteStock, getBillsForStock } from "@/lib/services/stocks"
@@ -26,13 +26,13 @@ export default function StocksPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [filterSize, setFilterSize] = useState("all")
+  // ✅ NEW: Sort order — "latest" shows newest added first, "az" sorts A→Z
+  const [sortOrder, setSortOrder] = useState<"latest" | "az">("latest")
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [stockToDelete, setStockToDelete] = useState<Stock | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // FIX: Use Set<string> instead of Set<number> to avoid JS type coercion issues
-  // where JSON-parsed numbers and literal numbers don't always compare as equal in Sets
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -72,8 +72,9 @@ export default function StocksPage() {
     return Array.from(new Set(sizes)).sort()
   }, [stocks])
 
+  // ✅ UPDATED: filteredStocks now also sorts based on sortOrder
   const filteredStocks = useMemo(() => {
-    return stocks.filter((s) => {
+    const filtered = stocks.filter((s) => {
       const matchesSearch =
         !searchQuery.trim() ||
         s.designName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -81,7 +82,16 @@ export default function StocksPage() {
       const matchesSize = filterSize === "all" || s.size === filterSize
       return matchesSearch && matchesType && matchesSize
     })
-  }, [stocks, searchQuery, filterType, filterSize])
+
+    if (sortOrder === "az") {
+      // Alphabetical A → Z by design name
+      return [...filtered].sort((a, b) => a.designName.localeCompare(b.designName))
+    }
+    // Default: latest added first (by createdAt descending)
+    return [...filtered].sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    )
+  }, [stocks, searchQuery, filterType, filterSize, sortOrder])
 
   const hasActiveFilters = searchQuery || filterType !== "all" || filterSize !== "all"
 
@@ -117,7 +127,6 @@ export default function StocksPage() {
     }
   }
 
-  // ── FIX: Convert id to string for reliable Set comparison ───────────────────
   const idKey = (id: number) => String(id)
 
   const allVisibleSelected =
@@ -126,7 +135,6 @@ export default function StocksPage() {
 
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
-      // Deselect only the visible ones (keep selections on other pages if ever paginated)
       setSelectedIds((prev) => {
         const next = new Set(prev)
         filteredStocks.forEach((s) => next.delete(idKey(s.id)))
@@ -141,9 +149,7 @@ export default function StocksPage() {
     }
   }
 
-  const toggleSelect = (id: number, e?: React.MouseEvent) => {
-    // Stop the click from bubbling up to the table row
-    e?.stopPropagation()
+  const toggleSelect = (id: number) => {
     const key = idKey(id)
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -248,7 +254,7 @@ export default function StocksPage() {
                 </CardDescription>
               </div>
 
-              {/* Search row */}
+              {/* Search + Sort row */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-52">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -259,6 +265,17 @@ export default function StocksPage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
+
+                {/* ✅ NEW: Sort order toggle */}
+                <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "latest" | "az")}>
+                  <SelectTrigger className="h-9 w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">Latest First</SelectItem>
+                    <SelectItem value="az">A → Z</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 {hasActiveFilters && (
                   <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
@@ -290,7 +307,6 @@ export default function StocksPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {/* Select-all checkbox */}
                     <TableHead className="w-10">
                       <Checkbox
                         checked={allVisibleSelected}
@@ -301,7 +317,6 @@ export default function StocksPage() {
 
                     <TableHead>Design Name</TableHead>
 
-                    {/* ── FIX: Filter dropdowns inline next to column names ── */}
                     <TableHead>
                       <div className="flex items-center gap-1.5">
                         <span>Type</span>
@@ -363,9 +378,6 @@ export default function StocksPage() {
                           key={stock.id}
                           className={isSelected ? "bg-muted/40" : ""}
                         >
-                          {/* FIX: wrap in a td-click handler that stops propagation,
-                              and use onClick instead of onCheckedChange so the event
-                              doesn't bubble to the row and double-toggle */}
                           <TableCell
                             onClick={(e) => {
                               e.stopPropagation()
@@ -375,9 +387,7 @@ export default function StocksPage() {
                           >
                             <Checkbox
                               checked={isSelected}
-                              // onCheckedChange intentionally omitted — handled by TableCell onClick above
-                              // This prevents the "select-all-or-none" bug caused by event bubbling
-                              onCheckedChange={() => {}} // keeps controlled component happy
+                              onCheckedChange={() => {}}
                               aria-label={`Select ${stock.designName}`}
                             />
                           </TableCell>
