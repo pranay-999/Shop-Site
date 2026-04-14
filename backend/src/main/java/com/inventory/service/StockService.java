@@ -18,22 +18,24 @@ public class StockService {
         this.stockRepository = stockRepository;
     }
 
-    // Helper: converts a Stock database row → StockDTO (what we send to the frontend)
     private StockDTO toDTO(Stock stock) {
         return new StockDTO(
             stock.getId(), stock.getDesignName(), stock.getSize(), stock.getType(),
-            stock.getTotalBoxes(), stock.getPricePerBox(), stock.getCategoryId(),
+            stock.getInitialBoxes(), stock.getSoldBoxes(), stock.getTotalBoxes(),
+            stock.getPricePerBox(), stock.getCategoryId(),
             stock.getCreatedAt(), stock.getUpdatedAt()
         );
     }
 
-    // Helper: converts a StockDTO (from frontend) → Stock database row
     private Stock toEntity(StockDTO dto) {
         Stock s = new Stock();
         s.setDesignName(dto.getDesignName());
         s.setSize(dto.getSize());
         s.setType(dto.getType());
-        s.setTotalBoxes(dto.getTotalBoxes());
+        int boxes = dto.getTotalBoxes() == null ? 0 : dto.getTotalBoxes();
+        s.setTotalBoxes(boxes);
+        s.setInitialBoxes(boxes);
+        s.setSoldBoxes(0);
         s.setPricePerBox(dto.getPricePerBox());
         s.setCategoryId(dto.getCategoryId());
         return s;
@@ -82,6 +84,24 @@ public class StockService {
         existing.setPricePerBox(stockDTO.getPricePerBox());
         existing.setCategoryId(stockDTO.getCategoryId());
         return toDTO(stockRepository.save(existing));
+    }
+
+    /**
+     * Adjusts stock by a delta value.
+     * Positive delta = adding boxes back (e.g. item removed from bill).
+     * Negative delta = removing boxes (e.g. item added to bill).
+     * This is called directly from the frontend as a fallback.
+     */
+    public StockDTO adjustStock(@NonNull Long id, int delta) {
+        Stock stock = stockRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
+        int currentTotal = stock.getTotalBoxes() == null ? 0 : stock.getTotalBoxes();
+        int currentSold  = stock.getSoldBoxes()  == null ? 0 : stock.getSoldBoxes();
+        // delta > 0 means returning boxes → totalBoxes up, soldBoxes down
+        // delta < 0 means selling boxes  → totalBoxes down, soldBoxes up
+        stock.setTotalBoxes(Math.max(0, currentTotal + delta));
+        stock.setSoldBoxes(Math.max(0, currentSold - delta));
+        return toDTO(stockRepository.save(stock));
     }
 
     public void deleteStock(@NonNull Long id) {

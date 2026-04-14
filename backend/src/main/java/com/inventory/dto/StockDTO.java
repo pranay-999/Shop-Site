@@ -7,6 +7,8 @@ public class StockDTO {
     private String designName;
     private String size;
     private String type;
+    private Integer initialBoxes;
+    private Integer soldBoxes;
     private Integer totalBoxes;
     private Double pricePerBox;
     private Long categoryId;
@@ -15,11 +17,16 @@ public class StockDTO {
 
     public StockDTO() {}
 
-    public StockDTO(Long id, String designName, String size, String type, Integer totalBoxes, Double pricePerBox, Long categoryId, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public StockDTO(Long id, String designName, String size, String type,
+                    Integer initialBoxes, Integer soldBoxes, Integer totalBoxes,
+                    Double pricePerBox, Long categoryId,
+                    LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.designName = designName;
         this.size = size;
         this.type = type;
+        this.initialBoxes = initialBoxes;
+        this.soldBoxes = soldBoxes;
         this.totalBoxes = totalBoxes;
         this.pricePerBox = pricePerBox;
         this.categoryId = categoryId;
@@ -38,6 +45,12 @@ public class StockDTO {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public Integer getInitialBoxes() { return initialBoxes; }
+    public void setInitialBoxes(Integer initialBoxes) { this.initialBoxes = initialBoxes; }
+
+    public Integer getSoldBoxes() { return soldBoxes; }
+    public void setSoldBoxes(Integer soldBoxes) { this.soldBoxes = soldBoxes; }
 
     public Integer getTotalBoxes() { return totalBoxes; }
     public void setTotalBoxes(Integer totalBoxes) { this.totalBoxes = totalBoxes; }

@@ -19,6 +19,15 @@ public class Stock {
     
     @Column(nullable = false)
     private String type;
+
+    // nullable = true so PostgreSQL can add this column to existing rows without error.
+    // We treat null as 0 in the getters below.
+    @Column(nullable = true)
+    private Integer initialBoxes;
+
+    // nullable = true for the same reason.
+    @Column(nullable = true)
+    private Integer soldBoxes;
     
     @Column(nullable = false)
     private Integer totalBoxes;
@@ -37,12 +46,16 @@ public class Stock {
     
     public Stock() {}
 
-    public Stock(Long id, String designName, String size, String type, Integer totalBoxes, Double pricePerBox, Long categoryId, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Stock(Long id, String designName, String size, String type,
+                 Integer totalBoxes, Double pricePerBox, Long categoryId,
+                 LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.designName = designName;
         this.size = size;
         this.type = type;
         this.totalBoxes = totalBoxes;
+        this.initialBoxes = totalBoxes;
+        this.soldBoxes = 0;
         this.pricePerBox = pricePerBox;
         this.categoryId = categoryId;
         this.createdAt = createdAt;
@@ -61,6 +74,12 @@ public class Stock {
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
 
+    public Integer getInitialBoxes() { return initialBoxes == null ? 0 : initialBoxes; }
+    public void setInitialBoxes(Integer initialBoxes) { this.initialBoxes = initialBoxes; }
+
+    public Integer getSoldBoxes() { return soldBoxes == null ? 0 : soldBoxes; }
+    public void setSoldBoxes(Integer soldBoxes) { this.soldBoxes = soldBoxes; }
+
     public Integer getTotalBoxes() { return totalBoxes; }
     public void setTotalBoxes(Integer totalBoxes) { this.totalBoxes = totalBoxes; }
 
@@ -75,15 +94,4 @@ public class Stock {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }

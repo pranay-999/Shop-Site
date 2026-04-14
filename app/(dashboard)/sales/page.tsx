@@ -53,7 +53,7 @@ type CartItem = {
   size: string;
   type: string;
   boxes: number;
-  price: number;
+  price: number;       // displayed price (may be GST-adjusted for INCLUSIVE)
   total: number;
 };
 
@@ -77,8 +77,10 @@ export default function NewSalePage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // baseCartPrices stores the ORIGINAL price the user typed — before any GST adjustment
   const [baseCartPrices, setBaseCartPrices] = useState<Record<string, number>>({});
   const [saleSuccessMessage, setSaleSuccessMessage] = useState("");
+  const [addToCartError, setAddToCartError] = useState("");
 
   // Auto-load next bill number on page load
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function NewSalePage() {
         const data = await getStocks();
         setStocks(data.filter((s: Stock) => s.categoryId === selectedCategoryId));
       } catch {
-        alert("Failed to load stocks");
+        // silent fail — stocks just won't load
       } finally {
         setLoading(false);
       }
@@ -131,23 +133,33 @@ export default function NewSalePage() {
   const handleStockSelect = (stock: Stock) => {
     setSelectedStock(stock);
     setSearchQuery("");
+    setAddToCartError("");
     const stockPrice = stock.pricePerBox ?? stock.price ?? 0;
     setCustomPrice(stockPrice > 0 ? stockPrice.toString() : "");
   };
 
   const handleAddToCart = () => {
-    if (!selectedStock) { alert("Please select a design first"); return; }
-    if (!boxQuantity || Number.parseInt(boxQuantity) <= 0) { alert("Please enter a valid quantity"); return; }
-    if (!customPrice || Number.parseFloat(customPrice) <= 0) { alert("Please enter a price per box"); return; }
+    setAddToCartError("");
+    if (!selectedStock) { setAddToCartError("Please select a design first"); return; }
+    if (!boxQuantity || Number.parseInt(boxQuantity) <= 0) { setAddToCartError("Please enter a valid quantity"); return; }
+    if (!customPrice || Number.parseFloat(customPrice) <= 0) { setAddToCartError("Please enter a price per box"); return; }
 
     const boxes = Number.parseInt(boxQuantity);
     const price = Number.parseFloat(customPrice);
     const availableBoxes = selectedStock.noOfBoxes ?? selectedStock.totalBoxes ?? 0;
 
-    if (boxes > availableBoxes) { alert(`Only ${availableBoxes} boxes available`); return; }
+    if (boxes > availableBoxes) { setAddToCartError(`Only ${availableBoxes} boxes available`); return; }
 
     const itemId = Date.now().toString();
+    // Store the original price entered by the user — this is what goes to the DB
     setBaseCartPrices((prev) => ({ ...prev, [itemId]: price }));
+
+    // For display in the cart, adjust price if inclusive GST is already enabled
+    const rate = Number.parseFloat(gstRate) || 0;
+    const displayPrice = (gstEnabled && gstType === "INCLUSIVE" && rate > 0)
+      ? Math.round((price / (1 + rate / 100)) * 100) / 100
+      : price;
+
     setCartItems([...cartItems, {
       id: itemId,
       stockId: selectedStock.id,
@@ -155,11 +167,11 @@ export default function NewSalePage() {
       size: selectedStock.size,
       type: selectedStock.type,
       boxes,
-      price,
-      total: boxes * price,
+      price: displayPrice,
+      total: Math.round(boxes * displayPrice * 100) / 100,
     }]);
 
-    // Reduce displayed stock count on screen immediately
+    // Reduce displayed stock count immediately
     setStocks((prev) => prev.map((s) =>
       s.id === selectedStock.id
         ? { ...s, noOfBoxes: (s.noOfBoxes ?? s.totalBoxes ?? 0) - boxes, totalBoxes: (s.totalBoxes ?? 0) - boxes }
@@ -179,6 +191,10 @@ export default function NewSalePage() {
       if (item.id !== itemId) return item;
       const newBoxes = field === "boxes" ? Number.parseInt(value) || 0 : item.boxes;
       const newPrice = field === "price" ? Number.parseFloat(value) || 0 : item.price;
+      // When user manually edits price, update the base price too
+      if (field === "price") {
+        setBaseCartPrices((prev) => ({ ...prev, [itemId]: newPrice }));
+      }
       return { ...item, boxes: newBoxes, price: newPrice, total: newBoxes * newPrice };
     }));
   };
@@ -197,12 +213,15 @@ export default function NewSalePage() {
     }
   };
 
-  // Auto-adjust prices when GST type/rate changes
+  // Auto-adjust DISPLAY prices when GST type/rate/enabled changes
+  // The base (original) price is always stored in baseCartPrices and never modified
   useEffect(() => {
     if (cartItems.length === 0) return;
     const rate = Number.parseFloat(gstRate) || 0;
     setCartItems((prev) => prev.map((item) => {
       const originalPrice = baseCartPrices[item.id] ?? item.price;
+      // INCLUSIVE: divide price so subtotal stays the same and GST is extracted from it
+      // EXCLUSIVE or GST off: show the original price as-is
       const newPrice = Math.round(
         (gstEnabled && gstType === "INCLUSIVE" ? originalPrice / (1 + rate / 100) : originalPrice) * 100
       ) / 100;
@@ -229,7 +248,11 @@ export default function NewSalePage() {
         billNumber,
         customerName,
         customerPhone,
-        items: cartItems,
+        // Pass originalPrice alongside price — bills.ts uses originalPrice for DB storage
+        items: cartItems.map((item) => ({
+          ...item,
+          originalPrice: baseCartPrices[item.id] ?? item.price,
+        })),
         subtotal,
         gstRate: gstEnabled ? Number.parseFloat(gstRate) : 0,
         gstType: gstEnabled ? gstType : undefined,
@@ -238,7 +261,6 @@ export default function NewSalePage() {
         totalAmount: grandTotal,
       });
 
-      // Fetch the next bill number immediately after saving
       const res = await fetch(`${API}/bills/next-bill-number`);
       const data = await res.json();
 
@@ -251,7 +273,7 @@ export default function NewSalePage() {
       setGstEnabled(false);
       setViewBillOpen(false);
     } catch {
-      alert("Failed to save bill. Please try again.");
+      setValidationErrors(["Failed to save bill. Please check your connection and try again."]);
     }
   };
 
@@ -259,8 +281,19 @@ export default function NewSalePage() {
   let gstAmount = 0;
   let grandTotal = subtotal;
   if (gstEnabled) {
-    if (gstType === "EXCLUSIVE") { gstAmount = (subtotal * Number.parseFloat(gstRate)) / 100; grandTotal = subtotal + gstAmount; }
-    else { grandTotal = subtotal; gstAmount = (grandTotal * Number.parseFloat(gstRate)) / (100 + Number.parseFloat(gstRate)); }
+    const rate = Number.parseFloat(gstRate) || 0;
+    if (gstType === "EXCLUSIVE") {
+      gstAmount = (subtotal * rate) / 100;
+      grandTotal = subtotal + gstAmount;
+    } else {
+      // INCLUSIVE: grandTotal = original entered prices × boxes (GST is already inside those prices)
+      // subtotal shows GST-stripped display prices, so we must restore from baseCartPrices
+      grandTotal = cartItems.reduce((sum, item) => {
+        const originalPrice = baseCartPrices[item.id] ?? item.price;
+        return sum + Math.round(originalPrice * item.boxes * 100) / 100;
+      }, 0);
+      gstAmount = Math.round((grandTotal * rate) / (100 + rate) * 100) / 100;
+    }
   }
 
   if (loading) {
@@ -273,11 +306,6 @@ export default function NewSalePage() {
         items={[{ label: "Create Sale" }]}
         title="Create Sale"
         description="Process new transactions and generate bills"
-        action={
-          <Button variant="outline" size="sm" onClick={() => router.push("/bills/edit/search")}>
-            Edit Existing Bill
-          </Button>
-        }
       />
 
       <main className="container mx-auto px-4 py-8 max-w-[1800px]">
@@ -390,6 +418,11 @@ export default function NewSalePage() {
                           <Input id="custom_price" type="number" placeholder="Enter price" value={customPrice} onChange={(e) => setCustomPrice(e.target.value)} />
                         </div>
                       </div>
+                      {addToCartError && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5" />{addToCartError}
+                        </p>
+                      )}
                       <Button onClick={handleAddToCart} className="w-full" size="sm">
                         <Plus className="h-4 w-4 mr-2" />Add to Cart
                       </Button>
@@ -412,7 +445,12 @@ export default function NewSalePage() {
                             <TableHead className="w-[35%]">Design</TableHead>
                             <TableHead className="w-[15%]">Size</TableHead>
                             <TableHead className="w-[15%] text-right">Boxes</TableHead>
-                            <TableHead className="w-[15%] text-right">Price</TableHead>
+                            <TableHead className="w-[15%] text-right">
+                              Price
+                              {gstEnabled && gstType === "INCLUSIVE" && (
+                                <span className="text-xs text-muted-foreground ml-1">(excl. GST)</span>
+                              )}
+                            </TableHead>
                             <TableHead className="w-[15%] text-right">Total</TableHead>
                             <TableHead className="w-[5%]"></TableHead>
                           </TableRow>
@@ -423,7 +461,12 @@ export default function NewSalePage() {
                               <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
                               <TableCell className="text-sm">{item.size}</TableCell>
                               <TableCell className="text-right text-sm">{item.boxes}</TableCell>
-                              <TableCell className="text-right text-sm">₹{item.price}</TableCell>
+                              <TableCell className="text-right text-sm">
+                                ₹{item.price}
+                                {gstEnabled && gstType === "INCLUSIVE" && baseCartPrices[item.id] && (
+                                  <div className="text-xs text-muted-foreground">orig: ₹{baseCartPrices[item.id]}</div>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right font-medium text-sm">₹{item.total.toLocaleString()}</TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
@@ -481,7 +524,7 @@ export default function NewSalePage() {
                   <div className="pt-2 border-t space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="gst_toggle" className="cursor-pointer text-sm">Apply GST</Label>
-                      <Switch id="gst_toggle" checked={gstEnabled} onCheckedChange={setGstEnabled} />
+                      <Switch id="gst_toggle" checked={gstEnabled} onCheckedChange={(val) => { setGstEnabled(val); if (!val) setGstType("EXCLUSIVE"); }} />
                     </div>
 
                     {gstEnabled && (
@@ -492,16 +535,16 @@ export default function NewSalePage() {
                         </div>
                         <RadioGroup value={gstType} onValueChange={(v) => setGstType(v as "EXCLUSIVE" | "INCLUSIVE")}>
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="EXCLUSIVE" id="exclusive" />
-                            <Label htmlFor="exclusive" className="text-sm cursor-pointer">Exclusive</Label>
+                            <RadioGroupItem value="EXCLUSIVE" id="exclusive" disabled={gstType === "INCLUSIVE"} />
+                            <Label htmlFor="exclusive" className={`text-sm cursor-pointer ${gstType === "INCLUSIVE" ? "text-muted-foreground line-through" : ""}`}>Exclusive (add GST on top)</Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="INCLUSIVE" id="inclusive" />
-                            <Label htmlFor="inclusive" className="text-sm cursor-pointer">Inclusive</Label>
+                            <Label htmlFor="inclusive" className="text-sm cursor-pointer">Inclusive (GST in price)</Label>
                           </div>
                         </RadioGroup>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">GST ({gstRate}%)</span>
+                          <span className="text-muted-foreground">GST ({gstRate}% {gstType})</span>
                           <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
                         </div>
                       </div>
@@ -546,7 +589,7 @@ export default function NewSalePage() {
                   <TableRow>
                     <TableHead>Item</TableHead>
                     <TableHead className="text-center">Boxes</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Price/Box</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -558,7 +601,12 @@ export default function NewSalePage() {
                         <p className="text-xs text-muted-foreground">{item.size} • {item.type}</p>
                       </TableCell>
                       <TableCell className="text-center">{item.boxes}</TableCell>
-                      <TableCell className="text-right">₹{item.price}</TableCell>
+                      <TableCell className="text-right">
+                        ₹{baseCartPrices[item.id] ?? item.price}
+                        {gstEnabled && gstType === "INCLUSIVE" && (
+                          <div className="text-xs text-muted-foreground">incl. GST</div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-medium">₹{item.total.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}

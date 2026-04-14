@@ -22,6 +22,10 @@ public class BillItem {
     @JoinColumn(name = "bill_id", nullable = false)
     private Bill bill;
 
+    // stockId links this bill item back to the stock record — used for inventory updates
+    @Column(name = "stock_id", nullable = true)
+    private Long stockId;
+
     @Column(name = "design_name", nullable = false)
     private String designName;
 
@@ -46,6 +50,8 @@ public class BillItem {
     public void setId(Long id) { this.id = id; }
     public Bill getBill() { return bill; }
     public void setBill(Bill bill) { this.bill = bill; }
+    public Long getStockId() { return stockId; }
+    public void setStockId(Long stockId) { this.stockId = stockId; }
     public String getDesignName() { return designName; }
     public void setDesignName(String designName) { this.designName = designName; }
     public String getSize() { return size; }

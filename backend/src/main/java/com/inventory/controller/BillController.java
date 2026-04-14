@@ -36,6 +36,11 @@ public class BillController {
         return ResponseEntity.ok(billService.getBillByBillNumber(billNumber));
     }
     
+    @GetMapping("/by-stock")
+public ResponseEntity<List<BillDTO>> getBillsByDesignName(@RequestParam String designName) {
+    return ResponseEntity.ok(billService.getBillsByDesignName(designName));
+}
+
     @GetMapping("/search")
     public ResponseEntity<List<BillDTO>> searchBills(@RequestParam String q) {
         return ResponseEntity.ok(billService.searchBills(q));

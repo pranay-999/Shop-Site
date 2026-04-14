@@ -20,7 +20,10 @@ public class TilesSanitaryBackendApplication {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(@NonNull CorsRegistry registry) {
-                registry.addMapping("/api/**")
+                // "/**" means ALL paths — fixes the bug where "/api/**" was wrong
+                // because the server context path is already /api, so routes
+                // are actually /bills, /stocks etc. inside that context.
+                registry.addMapping("/**")
                         .allowedOrigins("http://localhost:3000", "http://localhost:5173")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")

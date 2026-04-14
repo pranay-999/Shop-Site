@@ -1,13 +1,16 @@
 import { apiFetch } from "@/lib/api"
 import type { Stock } from "@/lib/types"
 
-// Java API already returns camelCase matching our Stock type
-// We just add the alias fields so existing page code doesn't break
+// Java API returns camelCase matching our Stock type.
+// We also copy fields to the alias names so old sales page code keeps working.
 function normalizeStock(s: Stock): Stock {
   return {
     ...s,
-    price: s.pricePerBox,       // sales page uses stock.price
-    noOfBoxes: s.totalBoxes,    // sales page uses stock.noOfBoxes
+    initialBoxes: s.initialBoxes ?? 0,
+    soldBoxes:    s.soldBoxes    ?? 0,
+    totalBoxes:   s.totalBoxes   ?? 0,
+    price:        s.pricePerBox,   // alias used by sales page
+    noOfBoxes:    s.totalBoxes,    // alias used by sales page
   }
 }
 
@@ -46,6 +49,12 @@ export async function getLowStockItems(threshold = 10): Promise<Stock[]> {
   return data.map(normalizeStock)
 }
 
+// Fetch all bills that contain a specific stock design name
+// Used in the Manage Inventory page "View Bills" button
+export async function getBillsForStock(designName: string) {
+  return apiFetch<any[]>(`/bills/by-stock?designName=${encodeURIComponent(designName)}`)
+}
+
 export async function uploadStockExcel(file: File, categoryId: number) {
   if (!file.name.endsWith(".csv")) {
     throw new Error("Only CSV upload is supported. Please use a .csv file.")
@@ -58,7 +67,6 @@ export async function uploadStockExcel(file: File, categoryId: number) {
 
   const headers = rows[0].split(",").map((h) => h.trim().toLowerCase())
 
-  // Support both 4-column (your template) and 5-column (with price) formats
   const required4 = ["design_name", "type", "size", "total_boxes"]
   const missing = required4.filter((k) => !headers.includes(k))
   if (missing.length > 0) throw new Error(`Missing required CSV columns: ${missing.join(", ")}`)
@@ -72,7 +80,6 @@ export async function uploadStockExcel(file: File, categoryId: number) {
       type: cols[idx("type")],
       size: cols[idx("size")],
       totalBoxes: Number(cols[idx("total_boxes")]),
-      // price_per_box column is optional — default to 0 if not present
       pricePerBox: idx("price_per_box") >= 0 ? Number(cols[idx("price_per_box")]) : 0,
       categoryId,
     }
