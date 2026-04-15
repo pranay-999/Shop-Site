@@ -97,8 +97,13 @@ export default function NewSalePage() {
         const res = await fetch(`${API}/bills/next-bill-number`);
         const data = await res.json();
         setBillNumber(data.billNumber);
+        // Save to localStorage so we remember it across restarts
+        localStorage.setItem("lastBillNumber", data.billNumber);
       } catch (err) {
         console.error("Could not load bill number", err);
+        // If backend call fails, use the last known bill number from localStorage
+        const saved = localStorage.getItem("lastBillNumber");
+        if (saved) setBillNumber(saved);
       }
     }
     loadNextBillNumber();
@@ -235,7 +240,7 @@ export default function NewSalePage() {
       ) / 100;
       return { ...item, price: newPrice, total: Math.round(item.boxes * newPrice * 100) / 100 };
     }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gstEnabled, gstType, gstRate]);
 
   const validateForm = () => {
@@ -281,10 +286,32 @@ export default function NewSalePage() {
         grandTotal,
       });
 
-      const res = await fetch(`${API}/bills/next-bill-number`);
-      const data = await res.json();
       setSaleSuccessMessage(`✅ Bill ${billNumber} saved successfully!`);
-      setBillNumber(data.billNumber);
+      // Generate next bill number from what the user just saved,
+      // so manual edits (e.g. 001 → 900) carry forward correctly.
+      // Resets to 001 after 999.
+      const computeNext = (current: string): string | null => {
+        const match = current.match(/^(.*?)(\d+)$/);
+        if (!match) return null;
+        const prefix = match[1];
+        const digits = match[2];
+        const next = parseInt(digits, 10) + 1;
+        const nextNum = next > 999 ? 1 : next;
+        return prefix + String(nextNum).padStart(digits.length, "0");
+      };
+      const localNext = computeNext(billNumber);
+      if (localNext) {
+        setBillNumber(localNext);
+        // Save the next bill number so restart picks up from here
+        localStorage.setItem("lastBillNumber", localNext);
+      } else {
+        try {
+          const res = await fetch(`${API}/bills/next-bill-number`);
+          const data = await res.json();
+          setBillNumber(data.billNumber);
+          localStorage.setItem("lastBillNumber", data.billNumber);
+        } catch { /* keep current if fetch fails */ }
+      }
       setCustomerName("");
       setCustomerPhone("");
       setCartItems([]);
@@ -320,15 +347,14 @@ export default function NewSalePage() {
             <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
               <thead style="background:#f5f5f5;">
                 <tr>
-                  <th style="text-align:left;">Design</th><th style="text-align:left;">Size</th>
-                  <th style="text-align:left;">Type</th><th style="text-align:right;">Boxes</th>
+                  <th style="text-align:left;">Design</th><th style="text-align:right;">Boxes</th>
                   <th style="text-align:right;">Price/Box</th><th style="text-align:right;">Total</th>
                 </tr>
               </thead>
               <tbody>
                 ${bill.items.map((item) => `
                   <tr>
-                    <td>${item.design_name}</td><td>${item.size}</td><td>${item.type}</td>
+                    <td>${item.design_name} (${item.size} • ${item.type})</td>
                     <td style="text-align:right;">${item.boxes}</td>
                     <td style="text-align:right;">₹${item.price}</td>
                     <td style="text-align:right;">₹${item.total.toLocaleString("en-IN")}</td>
@@ -517,8 +543,7 @@ export default function NewSalePage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[35%]">Design</TableHead>
-                            <TableHead className="w-[15%]">Size</TableHead>
+                            <TableHead className="w-[50%]">Design</TableHead>
                             <TableHead className="w-[15%] text-right">Boxes</TableHead>
                             <TableHead className="w-[15%] text-right">
                               Price
@@ -533,8 +558,7 @@ export default function NewSalePage() {
                         <TableBody>
                           {cartItems.map((item) => (
                             <TableRow key={item.id}>
-                              <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
-                              <TableCell className="text-sm">{item.size}</TableCell>
+                              <TableCell className="font-medium text-sm">{item.design_name} ({item.size} • {item.type})</TableCell>
                               <TableCell className="text-right text-sm">{item.boxes}</TableCell>
                               <TableCell className="text-right text-sm">
                                 ₹{item.price}
@@ -672,8 +696,7 @@ export default function NewSalePage() {
                   {cartItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <p className="font-medium">{item.design_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.size} • {item.type}</p>
+                        <p className="font-medium">{item.design_name} ({item.size} • {item.type})</p>
                       </TableCell>
                       <TableCell className="text-center">{item.boxes}</TableCell>
                       <TableCell className="text-right">
@@ -731,8 +754,6 @@ export default function NewSalePage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="border p-2 text-left">Design</th>
-                    <th className="border p-2 text-left">Size</th>
-                    <th className="border p-2 text-left">Type</th>
                     <th className="border p-2 text-right">Boxes</th>
                     <th className="border p-2 text-right">Price/Box</th>
                     <th className="border p-2 text-right">Total</th>
@@ -741,9 +762,7 @@ export default function NewSalePage() {
                 <tbody>
                   {completedBillData.items.map((item, i) => (
                     <tr key={i}>
-                      <td className="border p-2">{item.design_name}</td>
-                      <td className="border p-2">{item.size}</td>
-                      <td className="border p-2">{item.type}</td>
+                      <td className="border p-2">{item.design_name} ({item.size})</td>
                       <td className="border p-2 text-right">{item.boxes}</td>
                       <td className="border p-2 text-right">₹{item.price}</td>
                       <td className="border p-2 text-right">₹{item.total.toLocaleString("en-IN")}</td>

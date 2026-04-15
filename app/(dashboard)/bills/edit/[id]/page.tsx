@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Plus, Trash2, Edit, AlertCircle, Save, Loader2, RefreshCw } from "lucide-react"
+import { Plus, Trash2, Edit, AlertCircle, Save, Loader2, RefreshCw, Printer } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { NavigationHeader } from "@/components/layout/navigation-header"
 import { getStocks } from "@/lib/services/stocks"
 import { API_BASE } from "@/lib/api"
@@ -79,6 +80,11 @@ export default function EditBillPage() {
   const [saveError, setSaveError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState("")
+  const [printAfterSaveOpen, setPrintAfterSaveOpen] = useState(false)
+  const [savedBillData, setSavedBillData] = useState<{ billNumber: string; 
+    customerName: string; phoneNumber: string; items: typeof cartItems; 
+    subtotal: number; gstAmount: number; gstRate: string;
+     gstType: string; finalTotal: number } | null>(null)
 
   // ── Fetch fresh stock list ────────────────────────────────────────────────
   const refreshStocks = useCallback(async () => {
@@ -391,13 +397,82 @@ export default function EditBillPage() {
 
       setSaveSuccess(`Bill ${billData.bill_number} updated successfully!`)
       setValidationErrors([])
+      setSavedBillData({
+        billNumber: billData.bill_number,
+        customerName: billData.customer_name,
+        phoneNumber: billData.customer_phone,
+        items: cartItems,
+        subtotal,
+        gstAmount,
+        gstRate,
+        gstType,
+        finalTotal,
+      })
+      setPrintAfterSaveOpen(true)
     } catch {
       setSaveError("Could not connect to server. Make sure the backend is running.")
     } finally {
       setIsSaving(false)
     }
   }
-
+        const handlePrintSavedBill = () => {
+    if (!savedBillData) return
+    const win = window.open("", "_blank")
+    if (!win) return
+    win.document.write(`
+      <html>
+        <head><title>Invoice - ${savedBillData.billNumber}</title>
+        <style>@media print { body { margin: 0; } }</style>
+        </head>
+        <body style="background:#fff; padding:24px; font-family:Arial,sans-serif;">
+          <div style="max-width:620px; margin:0 auto; border:1px solid #e0e0e0; padding:32px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;">
+              <div>
+                <h2 style="margin:0; font-size:22px;">INVOICE</h2>
+                <p style="margin:4px 0 0; color:#555; font-size:13px;">Bill No: <strong>${savedBillData.billNumber}</strong></p>
+              </div>
+              <div style="text-align:right; font-size:13px; color:#555;">
+                <p style="margin:0;">Date: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                <p style="margin:4px 0 0; color:#d97706;">⚠ Edited</p>
+              </div>
+            </div>
+            <div style="margin-bottom:16px; font-size:14px;">
+              <p style="margin:0;"><strong>Customer:</strong> ${savedBillData.customerName}</p>
+              <p style="margin:4px 0 0;"><strong>Phone:</strong> ${savedBillData.phoneNumber}</p>
+            </div>
+            <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
+              <thead style="background:#f5f5f5;">
+                <tr>
+                  <th style="text-align:left;">Design</th>
+                  <th style="text-align:right;">Boxes</th>
+                  <th style="text-align:right;">Price/Box</th>
+                  <th style="text-align:right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${savedBillData.items.map((item) => `
+                  <tr>
+                    <td>${item.design_name}${item.size ? ` (${item.size})` : ""}</td>
+                    <td style="text-align:right;">${item.boxes}</td>
+                    <td style="text-align:right;">₹${item.pricePerBox}</td>
+                    <td style="text-align:right;">₹${item.total.toLocaleString("en-IN")}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+            <div style="text-align:right; font-size:14px;">
+              <p style="margin:4px 0;">Subtotal: ₹${savedBillData.subtotal.toLocaleString("en-IN")}</p>
+              ${savedBillData.gstAmount > 0 ? `<p style="margin:4px 0;">GST (${savedBillData.gstRate}%): ₹${savedBillData.gstAmount.toLocaleString("en-IN")}</p>` : ""}
+              <p style="margin:8px 0 0; font-size:17px; font-weight:bold; border-top:1px solid #111; padding-top:8px;">
+                Total: ₹${savedBillData.finalTotal.toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>`)
+    win.document.close()
+    setTimeout(() => win.print(), 300)
+    setPrintAfterSaveOpen(false)
+  }
   // ── Totals ────────────────────────────────────────────────────────────────
   // subtotal uses the DISPLAY price (which for inclusive is already GST-extracted)
   const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0)
@@ -629,8 +704,7 @@ export default function EditBillPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[35%]">Design</TableHead>
-                          <TableHead className="w-[15%]">Size</TableHead>
+                          <TableHead className="w-[45%]">Design</TableHead>
                           <TableHead className="w-[12%] text-right">Boxes</TableHead>
                           <TableHead className="w-[15%] text-right">
                             Price/Box
@@ -647,8 +721,9 @@ export default function EditBillPage() {
                           <TableRow key={item.id}>
                             {editingItemId === item.id ? (
                               <>
-                                <TableCell className="font-medium text-sm">{item.design_name}</TableCell>
-                                <TableCell className="text-sm">{item.size}</TableCell>
+                                <TableCell className="font-medium text-sm">
+                                  {item.design_name}{item.size ? ` (${item.size})` : ""}
+                                </TableCell>
                                 <TableCell className="text-right">
                                   <Input type="number" value={editBoxes} onChange={(e) => setEditBoxes(e.target.value)} className="w-16 h-7 text-right text-sm" />
                                 </TableCell>
@@ -665,10 +740,10 @@ export default function EditBillPage() {
                             ) : (
                               <>
                                 <TableCell>
-                                  <div className="font-medium text-sm">{item.design_name}</div>
-                                  <div className="text-xs text-muted-foreground">{item.type}</div>
+                                  <div className="font-medium text-sm">
+                                    {item.design_name}{item.size ? ` (${item.size})` : ""}
+                                  </div>
                                 </TableCell>
-                                <TableCell className="text-sm">{item.size}</TableCell>
                                 <TableCell className="text-right text-sm">
                                   {item.boxes}
                                   {item.boxes !== item.originalBoxes && item.originalBoxes > 0 && (
@@ -792,7 +867,31 @@ export default function EditBillPage() {
             </CardContent>
           </Card>
         </div>
-      </main>
+     </main>
+
+      {/* Print after save dialog */}
+      <Dialog open={printAfterSaveOpen} onOpenChange={setPrintAfterSaveOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5 text-green-600" />
+              Bill Saved Successfully!
+            </DialogTitle>
+            <DialogDescription>
+              Bill <strong>{savedBillData?.billNumber}</strong> has been updated. Would you like to print the updated bill?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setPrintAfterSaveOpen(false)}>
+              No, go back
+            </Button>
+            <Button className="flex-1" onClick={handlePrintSavedBill}>
+              <Printer className="h-4 w-4 mr-2" />
+              Yes, Print Bill
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

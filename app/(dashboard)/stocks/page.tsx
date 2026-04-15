@@ -266,16 +266,7 @@ export default function StocksPage() {
                   />
                 </div>
 
-                {/* ✅ NEW: Sort order toggle */}
-                <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "latest" | "az")}>
-                  <SelectTrigger className="h-9 w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="latest">Latest First</SelectItem>
-                    <SelectItem value="az">A → Z</SelectItem>
-                  </SelectContent>
-                </Select>
+                
 
                 {hasActiveFilters && (
                   <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
@@ -315,15 +306,25 @@ export default function StocksPage() {
                       />
                     </TableHead>
 
-                    <TableHead>Design Name</TableHead>
+                    <TableHead>
+                      <div className="flex items-center gap-1.5">
+                        <span>Design Name</span>
+                        <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "latest" | "az")}>
+                          <SelectTrigger className="h-7 w-auto border-dashed px-2 py-0 text-xs gap-1" />
+                          <SelectContent>
+                            <SelectItem value="latest">Latest First</SelectItem>
+                            <SelectItem value="az">A → Z</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TableHead>
 
                     <TableHead>
                       <div className="flex items-center gap-1.5">
                         <span>Type</span>
                         <Select value={filterType} onValueChange={setFilterType}>
-                          <SelectTrigger className="h-7 w-auto min-w-[90px] text-xs border-dashed px-2 py-0 font-normal">
-                            <SelectValue placeholder="All" />
-                          </SelectTrigger>
+                         <SelectTrigger className="h-7 w-auto border-dashed px-2 py-0 text-xs gap-1">
+                         </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Types</SelectItem>
                             {uniqueTypes.map((t) => (
@@ -338,8 +339,7 @@ export default function StocksPage() {
                       <div className="flex items-center gap-1.5">
                         <span>Size</span>
                         <Select value={filterSize} onValueChange={setFilterSize}>
-                          <SelectTrigger className="h-7 w-auto min-w-[90px] text-xs border-dashed px-2 py-0 font-normal">
-                            <SelectValue placeholder="All" />
+                          <SelectTrigger className="h-7 w-auto border-dashed px-2 py-0 text-xs gap-1">
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Sizes</SelectItem>

@@ -46,13 +46,33 @@ public class BillService {
 
     // ── Bill Number Generator ─────────────────────────────────────────────────
     private String generateNextBillNumber() {
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String prefix = "INV-" + today + "-";
-        long todayCount = billRepository.findAll().stream()
-            .filter(b -> b.getBillNumber() != null && b.getBillNumber().startsWith(prefix))
-            .count();
-        return prefix + String.format("%03d", todayCount + 1);
-    }
+    String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    String prefix = "INV-" + today + "-";
+    // Note: We find the max sequence across ALL bills, regardless of date prefix.
+    // This ensures the number never resets after a server restart or on a new day.
+
+    // Find the highest sequence number across ALL bills ever (not just today's)
+    int maxSeq = billRepository.findAll().stream()
+        .filter(b -> b.getBillNumber() != null)
+        .mapToInt(b -> {
+            String num = b.getBillNumber();
+            // Extract the last 3 digits part (after the last "-")
+            int lastDash = num.lastIndexOf("-");
+            if (lastDash == -1 || lastDash == num.length() - 1) return 0;
+            try {
+                return Integer.parseInt(num.substring(lastDash + 1));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        })
+        .max()
+        .orElse(0);
+
+    // If at 999, reset back to 1 (wrap around)
+    int nextSeq = (maxSeq >= 999) ? 1 : maxSeq + 1;
+
+    return prefix + String.format("%03d", nextSeq);
+}
 
     public String getNextBillNumber() {
         return generateNextBillNumber();

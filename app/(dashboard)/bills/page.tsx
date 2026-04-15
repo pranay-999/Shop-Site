@@ -215,8 +215,6 @@ export default function BillsPage() {
           <thead style="background:#f5f5f5;">
             <tr>
               <th style="text-align:left;">Design</th>
-              <th style="text-align:left;">Size</th>
-              <th style="text-align:left;">Type</th>
               <th style="text-align:right;">Boxes</th>
               <th style="text-align:right;">Price/Box</th>
               <th style="text-align:right;">Total</th>
@@ -225,9 +223,7 @@ export default function BillsPage() {
           <tbody>
             ${(bill.items ?? []).map((item) => `
               <tr>
-                <td>${item.designName}</td>
-                <td>${item.size}</td>
-                <td>${item.type}</td>
+                <td>${item.designName}${item.size ? ` (${item.size})` : ""}</td>
                 <td style="text-align:right;">${item.quantityBoxes}</td>
                 <td style="text-align:right;">₹${item.pricePerBox}</td>
                 <td style="text-align:right;">₹${(item.totalPrice ?? 0).toLocaleString("en-IN")}</td>
@@ -303,6 +299,64 @@ export default function BillsPage() {
     setPrintSelectedBills(billsToPrint)
     setPrintPreviewOpen(true)
   }
+      
+     // Print an old version (snapshot) of a bill
+  const handlePrintSnapshot = (snapshot: BillSnapshot, bill: Bill) => {
+    const win = window.open("", "_blank")
+    if (!win) { showToast("Popup blocked", "error", "Please allow popups for this site to print."); return }
+    win.document.write(`
+      <html>
+        <head><title>Invoice - ${bill.billNumber} (Old Version)</title>
+        <style>@media print { body { margin: 0; } }</style>
+        </head>
+        <body style="background:#fff; padding:24px; font-family:Arial,sans-serif;">
+          <div style="max-width:620px; margin:0 auto; border:1px solid #e0e0e0; padding:32px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;">
+              <div>
+                <h2 style="margin:0; font-size:22px;">INVOICE</h2>
+                <p style="margin:4px 0 0; color:#555; font-size:13px;">Bill No: <strong>${bill.billNumber}</strong></p>
+                <p style="margin:4px 0 0; color:#d97706; font-size:12px;">⚠ Old Version — saved on ${new Date(snapshot.snapshotAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+              </div>
+              <div style="text-align:right; font-size:13px; color:#555;">
+                <p style="margin:0;">Original Date: ${bill.createdAt ? new Date(bill.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</p>
+              </div>
+            </div>
+            <div style="margin-bottom:16px; font-size:14px;">
+              <p style="margin:0;"><strong>Customer:</strong> ${snapshot.customerName}</p>
+              <p style="margin:4px 0 0;"><strong>Phone:</strong> ${snapshot.phoneNumber}</p>
+            </div>
+            <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
+              <thead style="background:#f5f5f5;">
+                <tr>
+                  <th style="text-align:left;">Design</th>
+                  <th style="text-align:right;">Boxes</th>
+                  <th style="text-align:right;">Price/Box</th>
+                  <th style="text-align:right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(snapshot.items ?? []).map((item) => `
+                  <tr>
+                    <td>${item.designName}${item.size ? ` (${item.size})` : ""}</td>
+                    <td style="text-align:right;">${item.quantityBoxes}</td>
+                    <td style="text-align:right;">₹${item.pricePerBox}</td>
+                    <td style="text-align:right;">₹${(item.totalPrice ?? 0).toLocaleString("en-IN")}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+            <div style="text-align:right; font-size:14px;">
+              <p style="margin:4px 0;">Subtotal: ₹${(snapshot.subtotal ?? 0).toLocaleString("en-IN")}</p>
+              ${(snapshot.gstAmount ?? 0) > 0 ? `<p style="margin:4px 0;">GST (${snapshot.gstRate}%): ₹${(snapshot.gstAmount ?? 0).toLocaleString("en-IN")}</p>` : ""}
+              <p style="margin:8px 0 0; font-size:17px; font-weight:bold; border-top:1px solid #111; padding-top:8px;">
+                Total: ₹${(snapshot.totalAmount ?? 0).toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>`)
+    win.document.close()
+    setTimeout(() => win.print(), 300)
+  }
 
   // Actually does the printing (called from the preview dialog)
   const executePrint = (bills: Bill[]) => {
@@ -329,8 +383,6 @@ export default function BillsPage() {
           <thead style="background:#f5f5f5;">
             <tr>
               <th style="text-align:left;">Design</th>
-              <th style="text-align:left;">Size</th>
-              <th style="text-align:left;">Type</th>
               <th style="text-align:right;">Boxes</th>
               <th style="text-align:right;">Price/Box</th>
               <th style="text-align:right;">Total</th>
@@ -339,9 +391,7 @@ export default function BillsPage() {
           <tbody>
             ${(bill.items ?? []).map((item) => `
               <tr>
-                <td>${item.designName}</td>
-                <td>${item.size}</td>
-                <td>${item.type}</td>
+                <td>${item.designName}${item.size ? ` (${item.size})` : ""}</td>
                 <td style="text-align:right;">${item.quantityBoxes}</td>
                 <td style="text-align:right;">₹${item.pricePerBox}</td>
                 <td style="text-align:right;">₹${(item.totalPrice ?? 0).toLocaleString("en-IN")}</td>
@@ -386,8 +436,6 @@ export default function BillsPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Design</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Type</TableHead>
             <TableHead className="text-right">Boxes</TableHead>
             <TableHead className="text-right">Price/Box</TableHead>
             <TableHead className="text-right">Total</TableHead>
@@ -396,16 +444,16 @@ export default function BillsPage() {
         <TableBody>
           {(items ?? []).length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+              <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
                 No items in this version.
               </TableCell>
             </TableRow>
           ) : (
             (items ?? []).map((item, index) => (
               <TableRow key={item.id ?? index}>
-                <TableCell className="font-medium text-sm">{item.designName}</TableCell>
-                <TableCell className="text-sm">{item.size}</TableCell>
-                <TableCell className="text-sm">{item.type}</TableCell>
+                <TableCell className="font-medium text-sm">
+                  {item.designName}{item.size ? ` (${item.size})` : ""}
+                </TableCell>
                 <TableCell className="text-right text-sm">{item.quantityBoxes}</TableCell>
                 <TableCell className="text-right text-sm">₹{item.pricePerBox}</TableCell>
                 <TableCell className="text-right text-sm font-medium">
@@ -564,18 +612,20 @@ export default function BillsPage() {
                 </div>
               </div>
 
-              {/* ✅ NEW: Timeline filter row */}
-              <div className="flex flex-wrap gap-2">
-                {timeFilterOptions.map((opt) => (
-                  <Button
-                    key={opt.value}
-                    size="sm"
-                    variant={timeFilter === opt.value ? "default" : "outline"}
-                    onClick={() => setTimeFilter(opt.value)}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
+              {/* Timeline filter dropdown */}
+              <div className="flex items-center gap-2">
+                <Select value={timeFilter} onValueChange={setTimeFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Filter by time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* ✅ NEW: Custom date range inputs (shown only when Custom Range is selected) */}
@@ -925,6 +975,17 @@ export default function BillsPage() {
                               </div>
                               <BillVersionTable items={snapshot.items} />
                               <BillTotals bill={snapshot} />
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-orange-700 border-orange-300 hover:bg-orange-50"
+                                  onClick={() => selectedBill && handlePrintSnapshot(snapshot, selectedBill)}
+                                >
+                                  <Printer className="h-3.5 w-3.5 mr-1.5" />
+                                  Print this version
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1039,8 +1100,6 @@ export default function BillsPage() {
                   <thead className="bg-muted">
                     <tr>
                       <th className="border p-2 text-left">Design</th>
-                      <th className="border p-2 text-left">Size</th>
-                      <th className="border p-2 text-left">Type</th>
                       <th className="border p-2 text-right">Boxes</th>
                       <th className="border p-2 text-right">Price/Box</th>
                       <th className="border p-2 text-right">Total</th>
@@ -1049,9 +1108,7 @@ export default function BillsPage() {
                   <tbody>
                     {(bill.items ?? []).map((item, i) => (
                       <tr key={i}>
-                        <td className="border p-2">{item.designName}</td>
-                        <td className="border p-2">{item.size}</td>
-                        <td className="border p-2">{item.type}</td>
+                        <td className="border p-2">{item.designName}{item.size ? ` (${item.size})` : ""}</td>
                         <td className="border p-2 text-right">{item.quantityBoxes}</td>
                         <td className="border p-2 text-right">₹{item.pricePerBox}</td>
                         <td className="border p-2 text-right">₹{(item.totalPrice ?? 0).toLocaleString("en-IN")}</td>
