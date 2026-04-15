@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, Package, ShoppingCart, IndianRupee } from "lucide-react"
+import { TrendingUp, AlertTriangle, Package, ShoppingCart, IndianRupee, X, Printer, ArrowLeft } from "lucide-react"
 import { NavigationHeader } from "@/components/layout/navigation-header"
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"
@@ -12,6 +12,18 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [stocks, setStocks] = useState<any[]>([])
   const [bills, setBills] = useState<any[]>([])
+
+  // For bill list modal (Today / This Week / This Month)
+  const [billListModal, setBillListModal] = useState<{ open: boolean; title: string; bills: any[] }>({
+    open: false, title: "", bills: []
+  })
+
+  // For single bill detail modal
+  const [billDetailModal, setBillDetailModal] = useState<{ open: boolean; bill: any | null }>({
+    open: false, bill: null
+  })
+
+  const printRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -33,7 +45,7 @@ export default function AnalyticsPage() {
     loadData()
   }, [])
 
-  // ── Derived stats ──────────────────────────────────────────────────────────
+  // ── Derived stats ─────────────────────────────────────────────────────────
 
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -49,18 +61,18 @@ export default function AnalyticsPage() {
     list.reduce((s, b) => s + (b.totalAmount ?? b.grandTotal ?? 0), 0)
 
   const salesTrends = [
-    { period: "Today", sales: billsToday.length, revenue: sumRevenue(billsToday) },
-    { period: "This Week", sales: billsWeek.length, revenue: sumRevenue(billsWeek) },
-    { period: "This Month", sales: billsMonth.length, revenue: sumRevenue(billsMonth) },
+    { period: "Today", sales: billsToday.length, revenue: sumRevenue(billsToday), billsList: billsToday },
+    { period: "This Week", sales: billsWeek.length, revenue: sumRevenue(billsWeek), billsList: billsWeek },
+    { period: "This Month", sales: billsMonth.length, revenue: sumRevenue(billsMonth), billsList: billsMonth },
   ]
 
-  // Low stock: remaining boxes < 10
+  // Low stock items
   const lowStockItems = stocks
     .filter(s => (s.noOfBoxes ?? s.totalBoxes ?? 0) < 10)
     .sort((a, b) => (a.noOfBoxes ?? 0) - (b.noOfBoxes ?? 0))
     .slice(0, 10)
 
-  // Top selling: count boxes sold per design name from all bill items
+  // Top selling
   const soldMap: Record<string, { sold: number; revenue: number }> = {}
   bills.forEach(bill => {
     (bill.items ?? []).forEach((item: any) => {
@@ -85,6 +97,35 @@ export default function AnalyticsPage() {
   const inStock = stocks.filter(s => (s.noOfBoxes ?? s.totalBoxes ?? 0) >= 10).length
   const lowStockCount = stocks.filter(s => (s.noOfBoxes ?? s.totalBoxes ?? 0) < 10).length
 
+  // ── Print handler ──────────────────────────────────────────────────────────
+
+  function handlePrint() {
+    const content = printRef.current
+    if (!content) return
+    const printWindow = window.open("", "_blank", "width=800,height=600")
+    if (!printWindow) return
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bill #${billDetailModal.bill?.id ?? ""}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+            h2 { margin-bottom: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+            th { background: #f5f5f5; }
+            .total { font-size: 1.1rem; font-weight: bold; text-align: right; margin-top: 12px; }
+          </style>
+        </head>
+        <body>${content.innerHTML}</body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+    printWindow.close()
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -104,10 +145,14 @@ export default function AnalyticsPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-6">
 
-          {/* Sales Trends */}
+          {/* ── Sales Trends (clickable cards) ─────────────────────────── */}
           <div className="grid gap-4 md:grid-cols-3">
             {salesTrends.map((trend, index) => (
-              <Card key={index}>
+              <Card
+                key={index}
+                className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all"
+                onClick={() => setBillListModal({ open: true, title: trend.period, bills: trend.billsList })}
+              >
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-medium">{trend.period}</CardTitle>
                 </CardHeader>
@@ -125,6 +170,7 @@ export default function AnalyticsPage() {
                       <span className="text-lg font-semibold">₹{trend.revenue.toLocaleString("en-IN")}</span>
                     </div>
                   </div>
+                  <p className="text-xs text-primary mt-3 text-right">Click to view bills →</p>
                 </CardContent>
               </Card>
             ))}
@@ -148,7 +194,7 @@ export default function AnalyticsPage() {
                     <span className="text-xl font-bold">{totalItems}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-green-500/10 rounded-lg">
-                    <span className="text-sm font-medium">Healthy Stock (≥10 boxes)</span>
+                    <span className="text-sm font-medium">In Stock (≥10 boxes)</span>
                     <span className="text-xl font-bold text-green-600">{inStock}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-destructive/10 rounded-lg">
@@ -163,7 +209,7 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <IndianRupee className="h-5 w-5" />
-                  Total Revenue
+                  Revenue Overview
                 </CardTitle>
                 <CardDescription>All time earnings</CardDescription>
               </CardHeader>
@@ -265,6 +311,138 @@ export default function AnalyticsPage() {
 
         </div>
       </main>
+
+      {/* ── MODAL 1: Bill List (Today / This Week / This Month) ─────────────── */}
+      {billListModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-semibold">{billListModal.title} — Bills</h2>
+              <button
+                onClick={() => setBillListModal({ open: false, title: "", bills: [] })}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Bill list */}
+            <div className="overflow-y-auto flex-1 p-4 space-y-2">
+              {billListModal.bills.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No bills found for this period.</p>
+              ) : (
+                billListModal.bills.map((bill, i) => (
+                  <button
+                    key={bill.id ?? i}
+                    onClick={() => {
+                      setBillDetailModal({ open: true, bill })
+                      setBillListModal({ open: false, title: "", bills: [] })
+                    }}
+                    className="w-full text-left p-4 rounded-lg border hover:bg-muted hover:border-primary/50 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Bill #{bill.id ?? bill.billNumber ?? `${i + 1}`}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {bill.customerName ?? bill.customer ?? "Customer"} •{" "}
+                          {new Date(bill.createdAt ?? bill.billDate).toLocaleDateString("en-IN")}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-primary">
+                        ₹{(bill.totalAmount ?? bill.grandTotal ?? 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 2: Bill Detail with Print / Cancel ─────────────────────────── */}
+      {billDetailModal.open && billDetailModal.bill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-semibold">
+                Bill #{billDetailModal.bill.id ?? billDetailModal.bill.billNumber ?? "—"}
+              </h2>
+              <button
+                onClick={() => setBillDetailModal({ open: false, bill: null })}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Printable content */}
+            <div className="overflow-y-auto flex-1 p-5" ref={printRef}>
+              {/* Customer info */}
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground">Customer</p>
+                <p className="font-semibold text-lg">
+                  {billDetailModal.bill.customerName ?? billDetailModal.bill.customer ?? "—"}
+                </p>
+                {billDetailModal.bill.customerPhone && (
+                  <p className="text-sm text-muted-foreground">{billDetailModal.bill.customerPhone}</p>
+                )}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Date: {new Date(billDetailModal.bill.createdAt ?? billDetailModal.bill.billDate).toLocaleDateString("en-IN")}
+                </p>
+              </div>
+
+              {/* Items table */}
+              {(billDetailModal.bill.items ?? []).length > 0 && (
+                <table className="w-full text-sm border-collapse mb-4">
+                  <thead>
+                    <tr className="bg-muted">
+                      <th className="text-left p-2 border rounded-tl">Design</th>
+                      <th className="text-center p-2 border">Boxes</th>
+                      <th className="text-right p-2 border rounded-tr">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(billDetailModal.bill.items ?? []).map((item: any, i: number) => (
+                      <tr key={i} className="border-b">
+                        <td className="p-2 border">{item.designName ?? item.design_name ?? "—"}</td>
+                        <td className="p-2 border text-center">{item.quantityBoxes ?? item.boxes ?? 0}</td>
+                        <td className="p-2 border text-right">₹{(item.totalPrice ?? item.total ?? 0).toLocaleString("en-IN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* Total */}
+              <div className="flex justify-between items-center p-3 bg-muted rounded-lg font-semibold text-base">
+                <span>Total Amount</span>
+                <span>₹{(billDetailModal.bill.totalAmount ?? billDetailModal.bill.grandTotal ?? 0).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 p-5 border-t">
+              <button
+                onClick={handlePrint}
+                className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg py-2.5 font-medium hover:opacity-90 transition-opacity"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </button>
+              <button
+                onClick={() => setBillDetailModal({ open: false, bill: null })}
+                className="flex-1 flex items-center justify-center gap-2 border rounded-lg py-2.5 font-medium hover:bg-muted transition-colors"
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

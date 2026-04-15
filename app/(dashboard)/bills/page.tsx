@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,7 +43,8 @@ export default function BillsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // ✅ NEW: Timeline filter state
-  const [timeFilter, setTimeFilter] = useState("all")
+  const searchParams = useSearchParams()
+  const [timeFilter, setTimeFilter] = useState(searchParams.get("filter") ?? "all")
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
 
