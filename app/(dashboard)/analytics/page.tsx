@@ -23,7 +23,7 @@ export default function AnalyticsPage() {
     open: false, bill: null
   })
 
-  const printRef = useRef<HTMLDivElement>(null)
+  
 
   useEffect(() => {
     async function loadData() {
@@ -100,30 +100,72 @@ export default function AnalyticsPage() {
   // ── Print handler ──────────────────────────────────────────────────────────
 
   function handlePrint() {
-    const content = printRef.current
-    if (!content) return
-    const printWindow = window.open("", "_blank", "width=800,height=600")
-    if (!printWindow) return
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Bill #${billDetailModal.bill?.id ?? ""}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
-            h2 { margin-bottom: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-            th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-            th { background: #f5f5f5; }
-            .total { font-size: 1.1rem; font-weight: bold; text-align: right; margin-top: 12px; }
-          </style>
-        </head>
-        <body>${content.innerHTML}</body>
-      </html>
-    `)
-    printWindow.document.close()
-    printWindow.focus()
-    printWindow.print()
-    printWindow.close()
+    const bill = billDetailModal.bill
+    if (!bill) return
+    const win = window.open("", "_blank")
+    if (!win) return
+
+    const billNumber = bill.billNumber ?? bill.id ?? "—"
+    const customerName = bill.customerName ?? bill.customer ?? "—"
+    const customerPhone = bill.customerPhone ?? bill.phoneNumber ?? ""
+    const dateStr = bill.createdAt ?? bill.billDate ?? ""
+    const formattedDate = dateStr
+      ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    const items = bill.items ?? []
+    const subtotal = bill.subtotal ?? 0
+    const gstAmount = bill.gstAmount ?? 0
+    const gstRate = bill.gstRate ?? 0
+    const discount = bill.discount ?? 0
+    const grandTotal = bill.totalAmount ?? bill.grandTotal ?? 0
+
+    const html = `
+      <div style="font-family:Arial,sans-serif; padding:32px; max-width:620px; margin:0 auto; border:1px solid #e0e0e0;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;">
+          <div>
+            <h2 style="margin:0; font-size:22px;">INVOICE</h2>
+            <p style="margin:4px 0 0; color:#555; font-size:13px;">Bill No: <strong>${billNumber}</strong></p>
+          </div>
+          <div style="text-align:right; font-size:13px; color:#555;">
+            <p style="margin:0;">Date: ${formattedDate}</p>
+          </div>
+        </div>
+        <div style="margin-bottom:16px; font-size:14px;">
+          <p style="margin:0;"><strong>Customer:</strong> ${customerName}</p>
+          ${customerPhone ? `<p style="margin:4px 0 0;"><strong>Phone:</strong> ${customerPhone}</p>` : ""}
+        </div>
+        <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
+          <thead style="background:#f5f5f5;">
+            <tr>
+              <th style="text-align:left;">Design</th>
+              <th style="text-align:right;">Boxes</th>
+              <th style="text-align:right;">Price/Box</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item: any) => `
+              <tr>
+                <td>${item.designName ?? item.design_name ?? "—"}${item.size ? ` (${item.size})` : ""}</td>
+                <td style="text-align:right;">${item.quantityBoxes ?? item.boxes ?? 0}</td>
+                <td style="text-align:right;">₹${item.pricePerBox ?? item.price ?? 0}</td>
+                <td style="text-align:right;">₹${(item.totalPrice ?? item.total ?? 0).toLocaleString("en-IN")}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        <div style="text-align:right; font-size:14px;">
+          <p style="margin:4px 0;">Subtotal: ₹${subtotal.toLocaleString("en-IN")}</p>
+          ${gstAmount > 0 ? `<p style="margin:4px 0;">GST (${gstRate}%): ₹${gstAmount.toLocaleString("en-IN")}</p>` : ""}
+          ${discount > 0 ? `<p style="margin:4px 0; color:#16a34a;">Discount: -₹${discount.toLocaleString("en-IN")}</p>` : ""}
+          <p style="margin:8px 0 0; font-size:17px; font-weight:bold; border-top:1px solid #111; padding-top:8px;">
+            Total: ₹${grandTotal.toLocaleString("en-IN")}
+          </p>
+        </div>
+      </div>`
+
+    win.document.write(`<html><head><title>Invoice ${billNumber}</title><style>@media print{body{margin:0;}}</style></head><body style="background:#fff; padding:24px;">${html}</body></html>`)
+    win.document.close()
+    setTimeout(() => win.print(), 300)
   }
 
   if (loading) {
@@ -379,7 +421,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Printable content */}
-            <div className="overflow-y-auto flex-1 p-5" ref={printRef}>
+            <div className="overflow-y-auto flex-1 p-5">
               {/* Customer info */}
               <div className="mb-4">
                 <p className="text-sm text-muted-foreground">Customer</p>
