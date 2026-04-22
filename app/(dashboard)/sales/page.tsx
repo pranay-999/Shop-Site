@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Plus,
   Trash2,
-  Edit,
   Eye,
   AlertCircle,
   Search,
@@ -22,8 +21,10 @@ import {
   Check,
   Minus,
   FileText,
-  ArrowRight,
-  Sparkles,
+  Receipt,
+  Printer,
+  CreditCard,
+  ChevronRight,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -40,6 +41,7 @@ import { createBill, checkBillNumberExists } from "@/lib/services/bills";
 import { useCategory } from "@/context/CategoryContext";
 import { API_BASE } from "@/lib/api";
 import type { Stock } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type CartItem = {
   id: string;
@@ -67,7 +69,6 @@ export default function NewSalePage() {
   const [gstEnabled, setGstEnabled] = useState(false);
   const [gstRate, setGstRate] = useState("18");
   const [gstType, setGstType] = useState<"EXCLUSIVE" | "INCLUSIVE">("EXCLUSIVE");
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [viewBillOpen, setViewBillOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -81,6 +82,22 @@ export default function NewSalePage() {
     gstType: string | undefined; gstAmount: number; grandTotal: number;
   } | null>(null);
   const [addToCartError, setAddToCartError] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+
+  // Get unique categories from stocks
+  const categories = useMemo(() => {
+    const types = [...new Set(stocks.map((s) => s.type))].filter(Boolean);
+    return ["all", ...types];
+  }, [stocks]);
+
+  // Filter stocks by search and category
+  const filteredStocks = useMemo(() => {
+    return stocks.filter((stock) => {
+      const matchesSearch = stock.designName.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = activeCategory === "all" || stock.type === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [stocks, searchQuery, activeCategory]);
 
   useEffect(() => {
     async function loadNextBillNumber() {
@@ -127,16 +144,12 @@ export default function NewSalePage() {
     }
   };
 
-  const filteredStocks = stocks.filter((stock) =>
-    stock.designName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const handleStockSelect = (stock: Stock) => {
     setSelectedStock(stock);
-    setSearchQuery("");
     setAddToCartError("");
     const stockPrice = stock.pricePerBox ?? stock.price ?? 0;
     setCustomPrice(stockPrice > 0 ? stockPrice.toString() : "");
+    setBoxQuantity("1");
   };
 
   const handleAddToCart = () => {
@@ -179,20 +192,13 @@ export default function NewSalePage() {
     setSelectedStock(null);
     setBoxQuantity("");
     setCustomPrice("");
-    setSearchQuery("");
   };
 
-  const handleEditItem = (item: CartItem) => setEditingItemId(item.id);
-
-  const handleUpdateItem = (itemId: string, field: "boxes" | "price", value: string) => {
+  const handleUpdateQuantity = (itemId: string, delta: number) => {
     setCartItems(cartItems.map((item) => {
       if (item.id !== itemId) return item;
-      const newBoxes = field === "boxes" ? Number.parseInt(value) || 0 : item.boxes;
-      const newPrice = field === "price" ? Number.parseFloat(value) || 0 : item.price;
-      if (field === "price") {
-        setBaseCartPrices((prev) => ({ ...prev, [itemId]: newPrice }));
-      }
-      return { ...item, boxes: newBoxes, price: newPrice, total: newBoxes * newPrice };
+      const newBoxes = Math.max(1, item.boxes + delta);
+      return { ...item, boxes: newBoxes, total: newBoxes * item.price };
     }));
   };
 
@@ -200,7 +206,6 @@ export default function NewSalePage() {
     const removed = cartItems.find((i) => i.id === itemId);
     setCartItems(cartItems.filter((i) => i.id !== itemId));
     setBaseCartPrices((prev) => { const u = { ...prev }; delete u[itemId]; return u; });
-    if (editingItemId === itemId) setEditingItemId(null);
     if (removed) {
       setStocks((prev) => prev.map((s) =>
         s.id === removed.stockId
@@ -400,564 +405,447 @@ export default function NewSalePage() {
 
   return (
     <AppSidebar>
-      <div className="min-h-screen bg-background">
-        {/* Clean Header */}
-        <header className="border-b bg-card">
-          <div className="px-4 sm:px-6 lg:px-8 py-4">
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Left Panel - Products */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r">
+          {/* Header */}
+          <header className="shrink-0 border-b bg-card px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">New Sale</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Create invoice for <span className="text-primary font-medium">{selectedCategory}</span>
-                </p>
+                <h1 className="text-xl font-semibold text-foreground">Point of Sale</h1>
+                <p className="text-sm text-muted-foreground">{selectedCategory}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => router.push("/bills")} className="hidden sm:flex">
+              <Button variant="outline" size="sm" onClick={() => router.push("/bills")}>
                 <FileText className="mr-2 h-4 w-4" />
                 View Bills
               </Button>
             </div>
-          </div>
-        </header>
 
-        <main className="p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-6xl">
-            {/* Success Message */}
-            {saleSuccessMessage && (
-              <div className="mb-6 flex items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 p-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent">
-                  <Check className="h-4 w-4 text-accent-foreground" />
+            {/* Search Bar */}
+            <div className="mt-4 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-11 bg-background"
+              />
+            </div>
+
+            {/* Category Tabs */}
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
+                    activeCategory === cat
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  {cat === "all" ? "All Products" : cat}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          {/* Product Grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {filteredStocks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mb-4">
+                  <Package className="h-8 w-8 text-muted-foreground/50" />
                 </div>
-                <p className="font-medium text-foreground">{saleSuccessMessage}</p>
+                <p className="font-medium text-foreground">No products found</p>
+                <p className="text-sm text-muted-foreground mt-1">Try a different search or category</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {filteredStocks.map((stock) => {
+                  const available = stock.noOfBoxes ?? stock.totalBoxes ?? 0;
+                  const price = stock.pricePerBox ?? stock.price ?? 0;
+                  const isSelected = selectedStock?.id === stock.id;
+                  const isOutOfStock = available === 0;
+
+                  return (
+                    <button
+                      key={stock.id}
+                      disabled={isOutOfStock}
+                      onClick={() => handleStockSelect(stock)}
+                      className={cn(
+                        "relative p-4 rounded-xl border text-left transition-all",
+                        isOutOfStock
+                          ? "bg-secondary/30 opacity-60 cursor-not-allowed"
+                          : isSelected
+                          ? "border-primary bg-primary/5 ring-2 ring-primary shadow-sm"
+                          : "bg-card hover:border-primary/50 hover:shadow-sm"
+                      )}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center mb-3">
+                        <Package className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <p className="font-medium text-foreground text-sm line-clamp-1">{stock.designName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{stock.size}</p>
+                      <div className="flex items-center justify-between mt-3">
+                        <span className={cn(
+                          "text-xs font-medium px-2 py-0.5 rounded-full",
+                          isOutOfStock 
+                            ? "bg-destructive/10 text-destructive"
+                            : available <= 5 
+                            ? "bg-warning/10 text-warning"
+                            : "bg-accent/10 text-accent"
+                        )}>
+                          {isOutOfStock ? "Out of stock" : `${available} left`}
+                        </span>
+                        {price > 0 && (
+                          <span className="text-sm font-semibold text-foreground">₹{price}</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Selected Product Quick Add */}
+          {selectedStock && (
+            <div className="shrink-0 border-t bg-card p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">{selectedStock.designName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedStock.size} | {selectedStock.type} | {selectedStock.noOfBoxes ?? selectedStock.totalBoxes} available
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Qty"
+                      value={boxQuantity}
+                      onChange={(e) => setBoxQuantity(e.target.value)}
+                      className="w-20 h-10 text-center"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Price"
+                      value={customPrice}
+                      onChange={(e) => setCustomPrice(e.target.value)}
+                      className="w-24 h-10"
+                    />
+                  </div>
+                  <Button onClick={handleAddToCart} className="h-10">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setSelectedStock(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {addToCartError && (
+                <p className="text-sm text-destructive mt-2 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {addToCartError}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel - Cart & Checkout */}
+        <div className="w-full max-w-md flex flex-col bg-card">
+          {/* Success Message */}
+          {saleSuccessMessage && (
+            <div className="shrink-0 m-4 mb-0 flex items-center gap-3 rounded-lg bg-accent/10 border border-accent/20 p-3">
+              <Check className="h-5 w-5 text-accent shrink-0" />
+              <p className="text-sm font-medium text-foreground">{saleSuccessMessage}</p>
+            </div>
+          )}
+
+          {/* Customer Info */}
+          <div className="shrink-0 p-4 border-b">
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              Customer Details
+            </h2>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="relative">
+                <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                <Input
+                  placeholder="Bill #"
+                  value={billNumber}
+                  onChange={(e) => handleBillNumberChange(e.target.value)}
+                  className="pl-8 h-9 text-sm font-mono"
+                />
+              </div>
+              <div className="relative">
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                <Input
+                  placeholder="Name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <div className="relative">
+                <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                <Input
+                  placeholder="Phone"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+            </div>
+            {billNumberError && (
+              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {billNumberError}
+              </p>
+            )}
+          </div>
+
+          {/* Cart Items */}
+          <div className="flex-1 overflow-y-auto">
+            {cartItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mb-4">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <p className="font-medium text-foreground">Cart is empty</p>
+                <p className="text-sm text-muted-foreground mt-1">Select products to add them here</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="p-4 hover:bg-secondary/30 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm line-clamp-1">{item.design_name}</p>
+                        <p className="text-xs text-muted-foreground">{item.size} | {item.type}</p>
+                        <p className="text-xs text-muted-foreground mt-1">₹{item.price} per box</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center border rounded-lg">
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, -1)}
+                            className="p-1.5 hover:bg-secondary transition-colors"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-8 text-center text-sm font-medium">{item.boxes}</span>
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, 1)}
+                            className="p-1.5 hover:bg-secondary transition-colors"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="p-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-end mt-2">
+                      <span className="font-semibold text-foreground">₹{item.total.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Summary & Checkout */}
+          <div className="shrink-0 border-t bg-secondary/20 p-4">
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <ul className="list-disc list-inside text-sm space-y-0.5">
+                    {validationErrors.map((error, index) => <li key={index}>{error}</li>)}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* GST Toggle */}
+            <div className="flex items-center justify-between mb-3">
+              <Label htmlFor="gst" className="text-sm text-muted-foreground cursor-pointer">Apply GST</Label>
+              <Switch id="gst" checked={gstEnabled} onCheckedChange={(val) => { setGstEnabled(val); if (!val) setGstType("EXCLUSIVE"); }} />
+            </div>
+
+            {gstEnabled && (
+              <div className="flex items-center gap-3 mb-3">
+                <Input
+                  type="number"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(e.target.value)}
+                  className="w-20 h-8 text-sm"
+                  placeholder="%"
+                />
+                <RadioGroup value={gstType} onValueChange={(v) => setGstType(v as "EXCLUSIVE" | "INCLUSIVE")} className="flex gap-3">
+                  <div className="flex items-center space-x-1.5">
+                    <RadioGroupItem value="EXCLUSIVE" id="ex" />
+                    <Label htmlFor="ex" className="text-xs cursor-pointer">Exclusive</Label>
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <RadioGroupItem value="INCLUSIVE" id="in" />
+                    <Label htmlFor="in" className="text-xs cursor-pointer">Inclusive</Label>
+                  </div>
+                </RadioGroup>
               </div>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-5">
-              {/* Left Column - Forms */}
-              <div className="lg:col-span-3 space-y-6">
-                {/* Customer & Bill Info */}
-                <div className="rounded-xl border bg-card p-5 sm:p-6">
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <User className="h-4 w-4 text-primary" />
-                    </div>
-                    <h2 className="font-semibold text-foreground">Customer Details</h2>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="bill_number" className="text-sm text-muted-foreground">
-                        Bill Number
-                      </Label>
-                      <div className="relative">
-                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                        <Input
-                          id="bill_number"
-                          placeholder="INV-001"
-                          value={billNumber}
-                          onChange={(e) => handleBillNumberChange(e.target.value)}
-                          className="pl-9 font-mono"
-                        />
-                      </div>
-                      {billNumberError && (
-                        <p className="text-xs text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {billNumberError}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="customer_name" className="text-sm text-muted-foreground">
-                        Customer Name
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                        <Input
-                          id="customer_name"
-                          placeholder="John Doe"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="customer_phone" className="text-sm text-muted-foreground">
-                        Phone Number
-                      </Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                        <Input
-                          id="customer_phone"
-                          placeholder="+91 98765 43210"
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product Search */}
-                <div className="rounded-xl border bg-card p-5 sm:p-6">
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <Package className="h-4 w-4 text-primary" />
-                    </div>
-                    <h2 className="font-semibold text-foreground">Add Products</h2>
-                  </div>
-
-                  {/* Search Input */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search products by design name..."
-                      className="pl-10 h-11"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Search Results */}
-                  {searchQuery && filteredStocks.length > 0 && (
-                    <div className="mt-3 rounded-lg border bg-background max-h-56 overflow-y-auto">
-                      {filteredStocks.map((stock, index) => (
-                        <button
-                          key={stock.id}
-                          className={`w-full flex items-center justify-between p-3 text-left hover:bg-secondary/50 transition-colors ${index !== 0 ? "border-t" : ""}`}
-                          onClick={() => handleStockSelect(stock)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
-                              <Package className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-foreground">{stock.designName}</p>
-                              <p className="text-xs text-muted-foreground">{stock.size} | {stock.type}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-foreground">
-                              {stock.noOfBoxes ?? stock.totalBoxes} <span className="text-muted-foreground font-normal">boxes</span>
-                            </p>
-                            {(stock.pricePerBox ?? stock.price ?? 0) > 0 && (
-                              <p className="text-xs text-muted-foreground">₹{stock.pricePerBox ?? stock.price}/box</p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {searchQuery && filteredStocks.length === 0 && (
-                    <div className="mt-3 rounded-lg border border-dashed bg-secondary/20 p-8 text-center">
-                      <Package className="mx-auto h-10 w-10 text-muted-foreground/30" />
-                      <p className="mt-3 text-sm font-medium text-muted-foreground">No products found</p>
-                      <p className="text-xs text-muted-foreground/70">Try a different search term</p>
-                    </div>
-                  )}
-
-                  {/* Selected Product Card */}
-                  {selectedStock && (
-                    <div className="mt-4 rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                            <Sparkles className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground">{selectedStock.designName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedStock.size} | {selectedStock.type} | <span className="text-primary font-medium">{selectedStock.noOfBoxes ?? selectedStock.totalBoxes} available</span>
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 -mr-2 -mt-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => setSelectedStock(null)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Quantity (Boxes)</Label>
-                          <Input
-                            type="number"
-                            placeholder="Enter quantity"
-                            value={boxQuantity}
-                            onChange={(e) => setBoxQuantity(e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Price per Box (₹)</Label>
-                          <Input
-                            type="number"
-                            placeholder="Enter price"
-                            value={customPrice}
-                            onChange={(e) => setCustomPrice(e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                      </div>
-                      {addToCartError && (
-                        <p className="mt-3 text-sm text-destructive flex items-center gap-1.5">
-                          <AlertCircle className="h-4 w-4" />
-                          {addToCartError}
-                        </p>
-                      )}
-                      <Button onClick={handleAddToCart} className="w-full mt-4 h-10">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add to Cart
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cart Items */}
-                <div className="rounded-xl border bg-card overflow-hidden">
-                  <div className="border-b bg-secondary/30 px-5 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                      <h2 className="font-semibold text-foreground">Cart</h2>
-                    </div>
-                    {cartItems.length > 0 && (
-                      <span className="text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-full">
-                        {cartItems.length} {cartItems.length === 1 ? "item" : "items"}
-                      </span>
-                    )}
-                  </div>
-
-                  {cartItems.length === 0 ? (
-                    <div className="p-10 text-center">
-                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/50">
-                        <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
-                      </div>
-                      <p className="mt-4 font-medium text-foreground">Your cart is empty</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Search and add products to get started</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {cartItems.map((item) => (
-                        <div key={item.id} className="p-4 hover:bg-secondary/20 transition-colors group">
-                          <div className="flex items-start gap-4">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                              <Package className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <p className="font-medium text-foreground">{item.design_name}</p>
-                                  <p className="text-xs text-muted-foreground">{item.size} | {item.type}</p>
-                                </div>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7"
-                                    onClick={() => handleEditItem(item)}
-                                  >
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleRemoveItem(item.id)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                              {editingItemId === item.id ? (
-                                <div className="mt-3 flex items-center gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <Label className="text-xs text-muted-foreground">Qty:</Label>
-                                    <Input
-                                      type="number"
-                                      value={item.boxes}
-                                      onChange={(e) => handleUpdateItem(item.id, "boxes", e.target.value)}
-                                      className="w-20 h-8"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Label className="text-xs text-muted-foreground">Price:</Label>
-                                    <Input
-                                      type="number"
-                                      value={item.price}
-                                      onChange={(e) => handleUpdateItem(item.id, "price", e.target.value)}
-                                      className="w-24 h-8"
-                                    />
-                                  </div>
-                                  <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingItemId(null)}>
-                                    Done
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="mt-2 flex items-center justify-between">
-                                  <div className="flex items-center gap-4 text-sm">
-                                    <span className="text-muted-foreground">
-                                      {item.boxes} {item.boxes === 1 ? "box" : "boxes"} × ₹{item.price}
-                                    </span>
-                                  </div>
-                                  <p className="font-semibold text-foreground">₹{item.total.toLocaleString("en-IN")}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            {/* Price Summary */}
+            <div className="space-y-1.5 py-3 border-y border-border/50 mb-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Items ({cartItems.length})</span>
+                <span className="text-foreground">{totalBoxes} boxes</span>
               </div>
-
-              {/* Right Column - Summary */}
-              <div className="lg:col-span-2">
-                <div className="rounded-xl border bg-card overflow-hidden lg:sticky lg:top-6">
-                  <div className="border-b bg-secondary/30 px-5 py-4">
-                    <h2 className="font-semibold text-foreground">Order Summary</h2>
-                  </div>
-                  <div className="p-5 space-y-5">
-                    {/* Validation Errors */}
-                    {validationErrors.length > 0 && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          <ul className="list-disc list-inside text-sm space-y-0.5">
-                            {validationErrors.map((error, index) => <li key={index}>{error}</li>)}
-                          </ul>
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* Summary Stats */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <p className="text-xs text-muted-foreground">Items</p>
-                        <p className="text-lg font-semibold text-foreground">{cartItems.length}</p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <p className="text-xs text-muted-foreground">Total Boxes</p>
-                        <p className="text-lg font-semibold text-foreground">{totalBoxes}</p>
-                      </div>
-                    </div>
-
-                    {/* Price Breakdown */}
-                    <div className="space-y-2 py-3 border-y">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Subtotal</span>
-                        <span className="font-medium text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
-                      </div>
-                      {gstEnabled && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">GST ({gstRate}%)</span>
-                          <span className="font-medium text-foreground">₹{gstAmount.toLocaleString("en-IN")}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* GST Toggle */}
-                    <div className="rounded-lg bg-secondary/30 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="gst_toggle" className="text-sm font-medium cursor-pointer">
-                          Apply GST
-                        </Label>
-                        <Switch
-                          id="gst_toggle"
-                          checked={gstEnabled}
-                          onCheckedChange={(val) => { setGstEnabled(val); if (!val) setGstType("EXCLUSIVE"); }}
-                        />
-                      </div>
-                      {gstEnabled && (
-                        <div className="space-y-3 pt-3 border-t">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">GST Rate (%)</Label>
-                            <Input
-                              type="number"
-                              value={gstRate}
-                              onChange={(e) => setGstRate(e.target.value)}
-                              className="h-9"
-                            />
-                          </div>
-                          <RadioGroup
-                            value={gstType}
-                            onValueChange={(v) => setGstType(v as "EXCLUSIVE" | "INCLUSIVE")}
-                            className="flex gap-4"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="EXCLUSIVE" id="exclusive" />
-                              <Label htmlFor="exclusive" className="text-sm cursor-pointer">Exclusive</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="INCLUSIVE" id="inclusive" />
-                              <Label htmlFor="inclusive" className="text-sm cursor-pointer">Inclusive</Label>
-                            </div>
-                          </RadioGroup>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Grand Total */}
-                    <div className="rounded-lg bg-primary p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-primary-foreground">Grand Total</span>
-                        <span className="text-2xl font-bold text-primary-foreground">₹{grandTotal.toLocaleString("en-IN")}</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="space-y-2">
-                      <Button
-                        onClick={() => setViewBillOpen(true)}
-                        variant="outline"
-                        className="w-full h-10"
-                        disabled={cartItems.length === 0}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        Preview Invoice
-                      </Button>
-                      <Button
-                        onClick={handleCompleteSale}
-                        className="w-full h-11"
-                        disabled={cartItems.length === 0}
-                      >
-                        Complete Sale
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
               </div>
+              {gstEnabled && gstAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">GST ({gstRate}%)</span>
+                  <span className="text-foreground">₹{gstAmount.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Grand Total */}
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-lg font-semibold text-foreground">Total</span>
+              <span className="text-2xl font-bold text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setViewBillOpen(true)}
+                disabled={cartItems.length === 0}
+                className="flex-1"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Preview
+              </Button>
+              <Button
+                onClick={handleCompleteSale}
+                disabled={cartItems.length === 0}
+                className="flex-[2]"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Complete Sale
+              </Button>
             </div>
           </div>
-        </main>
-
-        {/* Bill Preview Dialog */}
-        <Dialog open={viewBillOpen} onOpenChange={setViewBillOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl">Invoice Preview</DialogTitle>
-              <DialogDescription>Review before completing the sale</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 pt-2">
-              {/* Customer Info */}
-              <div className="rounded-lg bg-secondary/30 p-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Bill Number</p>
-                    <p className="font-semibold font-mono mt-1">{billNumber || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p>
-                    <p className="font-semibold mt-1">{new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p>
-                    <p className="font-semibold mt-1">{customerName || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p>
-                    <p className="font-semibold mt-1">{customerPhone || "—"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-secondary/50">
-                    <tr>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Item</th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">Qty</th>
-                      <th className="text-right p-3 font-medium text-muted-foreground">Rate</th>
-                      <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {cartItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="p-3">
-                          <p className="font-medium">{item.design_name}</p>
-                          <p className="text-xs text-muted-foreground">{item.size} | {item.type}</p>
-                        </td>
-                        <td className="p-3 text-center">{item.boxes}</td>
-                        <td className="p-3 text-right">₹{baseCartPrices[item.id] ?? item.price}</td>
-                        <td className="p-3 text-right font-semibold">₹{item.total.toLocaleString("en-IN")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Totals */}
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between py-2">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
-                </div>
-                {gstEnabled && (
-                  <div className="flex justify-between py-2">
-                    <span className="text-muted-foreground">GST ({gstRate}% {gstType})</span>
-                    <span className="font-medium">₹{gstAmount.toLocaleString("en-IN")}</span>
-                  </div>
-                )}
-                <div className="flex justify-between py-3 border-t-2 border-foreground/10">
-                  <span className="text-lg font-bold">Grand Total</span>
-                  <span className="text-xl font-bold text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <Button onClick={() => setViewBillOpen(false)} variant="outline" className="flex-1">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-                <Button onClick={handleCompleteSale} className="flex-1">
-                  <Check className="mr-2 h-4 w-4" />
-                  Confirm Sale
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Print Dialog */}
-        <Dialog open={printAfterSaleOpen} onOpenChange={(open) => { if (!open) { setPrintAfterSaleOpen(false); setCompletedBillData(null); } }}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-                  <Check className="h-4 w-4 text-accent-foreground" />
-                </div>
-                Sale Complete
-              </DialogTitle>
-              <DialogDescription>
-                Bill <span className="font-semibold font-mono">{completedBillData?.billNumber}</span> has been saved successfully.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <div className="rounded-lg bg-secondary/30 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Amount Collected</p>
-                <p className="text-3xl font-bold text-foreground mt-1">₹{completedBillData?.grandTotal.toLocaleString("en-IN")}</p>
-                <p className="text-sm text-muted-foreground mt-2">from {completedBillData?.customerName}</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button onClick={() => saveBillAndReset(true)} className="w-full">
-                Print Invoice
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              <Button onClick={() => saveBillAndReset(false)} variant="outline" className="w-full">
-                Skip Printing
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        </div>
       </div>
+
+      {/* Bill Preview Dialog */}
+      <Dialog open={viewBillOpen} onOpenChange={setViewBillOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              Invoice Preview
+            </DialogTitle>
+            <DialogDescription>Review invoice before completing the sale</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Bill To</p>
+                <p className="font-semibold text-foreground mt-1">{customerName || "Customer Name"}</p>
+                <p className="text-sm text-muted-foreground">{customerPhone || "Phone Number"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice</p>
+                <p className="font-mono font-semibold text-foreground mt-1">{billNumber}</p>
+                <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("en-IN")}</p>
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/50">
+                  <tr>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Item</th>
+                    <th className="text-center p-3 font-medium text-muted-foreground">Qty</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {cartItems.map((item) => (
+                    <tr key={item.id}>
+                      <td className="p-3">
+                        <p className="font-medium text-foreground">{item.design_name}</p>
+                        <p className="text-xs text-muted-foreground">{item.size}</p>
+                      </td>
+                      <td className="text-center p-3 text-muted-foreground">{item.boxes}</td>
+                      <td className="text-right p-3 font-medium text-foreground">₹{item.total.toLocaleString("en-IN")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
+              </div>
+              {gstEnabled && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">GST ({gstRate}%)</span>
+                  <span className="text-foreground">₹{gstAmount.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-semibold pt-2 border-t">
+                <span>Total</span>
+                <span className="text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+
+            <Button onClick={handleCompleteSale} className="w-full">
+              <Check className="mr-2 h-4 w-4" />
+              Confirm & Complete Sale
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Dialog */}
+      <Dialog open={printAfterSaleOpen} onOpenChange={setPrintAfterSaleOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-accent" />
+              Sale Completed
+            </DialogTitle>
+            <DialogDescription>Would you like to print the invoice?</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button variant="outline" onClick={() => saveBillAndReset(false)} className="flex-1">
+              Skip
+            </Button>
+            <Button onClick={() => saveBillAndReset(true)} className="flex-1">
+              <Printer className="mr-2 h-4 w-4" />
+              Print
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppSidebar>
   );
 }
