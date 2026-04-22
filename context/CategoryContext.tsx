@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react"
+import { API_BASE } from "@/lib/api"
 
 type CategoryContextType = {
   selectedCategory: string
@@ -84,6 +85,16 @@ export function CategoryProvider({ children }: { children: React.ReactNode }) {
         setSelectedCategoryIdState(Number(savedId))
       }
     }
+  }, [])
+
+  // Sync categories from backend (falls back to hardcoded list if backend is down)
+  useEffect(() => {
+    fetch(`${API_BASE}/categories`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setCategories(data)
+      })
+      .catch(() => {}) // silent fail — hardcoded fallback stays active
   }, [])
 
   const handleSetCategory = (category: string, categoryId: number) => {

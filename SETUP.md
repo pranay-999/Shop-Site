@@ -121,7 +121,7 @@ Shop-Site/
 |------|---------|---------|
 | Node.js | 18+ | https://nodejs.org |
 | Java JDK | 17+ | https://adoptium.net |
-| Maven | 3.8+ | bundled via `mvnw` |
+| Maven | 3.8+ | https://maven.apache.org/install.html |
 | Git | any | https://git-scm.com |
 
 You also need a **Supabase** project. Get one free at https://supabase.com.
@@ -131,7 +131,7 @@ You also need a **Supabase** project. Get one free at https://supabase.com.
 ## 1 — Clone the Repo
 
 ```bash
-git clone https://github.com/pranay-999/Shop-Site.git
+git clone https://github.com/YOUR_USERNAME/Shop-Site.git
 cd Shop-Site
 ```
 
@@ -174,57 +174,51 @@ Opens at **http://localhost:3000**
 
 ## 3 — Backend Setup (Spring Boot)
 
-### 3.1 Create your environment file
+### 3.1 Set your database credentials
 
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env`:
-
-```env
-DB_URL=jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
-DB_USERNAME=postgres.your_project_ref
-DB_PASSWORD=your_supabase_db_password
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-```
+The backend reads DB credentials from environment variables. You need to set these before running.
 
 > **Where to find these values:**  
-> Supabase dashboard → Project Settings → Database → Connection string (Transaction pooler)
+> Supabase dashboard → Project Settings → Database → Connection string → **Session pooler** tab  
+> Copy the host, port, username, and password shown there.
+
+> **Important:** The JDBC URL must include `?prepareThreshold=0` at the end.  
+> Without it you will get `prepared statement already exists` errors at runtime.  
+> This is required because Supabase uses a connection pooler that doesn't support server-side prepared statements.
 
 ### 3.2 Run the backend
 
-**On macOS / Linux:**
-```bash
+**On Windows (PowerShell) — recommended:**
+```powershell
 cd backend
-export DB_URL=jdbc:postgresql://...
-export DB_USERNAME=postgres.your_project_ref
-export DB_PASSWORD=your_supabase_password
-export CORS_ALLOWED_ORIGINS=http://localhost:3000
+$env:DB_URL="jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?prepareThreshold=0"
+$env:DB_USERNAME="postgres.your_project_ref"
+$env:DB_PASSWORD="your_supabase_password"
+$env:CORS_ALLOWED_ORIGINS="http://localhost:3000"
 
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 **On Windows (Command Prompt):**
 ```cmd
 cd backend
-set DB_URL=jdbc:postgresql://...
+set DB_URL=jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?prepareThreshold=0
 set DB_USERNAME=postgres.your_project_ref
 set DB_PASSWORD=your_supabase_password
 set CORS_ALLOWED_ORIGINS=http://localhost:3000
 
-mvnw.cmd spring-boot:run
+mvn spring-boot:run
 ```
 
-**On Windows (PowerShell):**
-```powershell
+**On macOS / Linux:**
+```bash
 cd backend
-$env:DB_URL="jdbc:postgresql://..."
-$env:DB_USERNAME="postgres.your_project_ref"
-$env:DB_PASSWORD="your_supabase_password"
-$env:CORS_ALLOWED_ORIGINS="http://localhost:3000"
+export DB_URL="jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?prepareThreshold=0"
+export DB_USERNAME="postgres.your_project_ref"
+export DB_PASSWORD="your_supabase_password"
+export CORS_ALLOWED_ORIGINS="http://localhost:3000"
 
-.\mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 Backend starts at **http://localhost:8080/api**
@@ -240,22 +234,63 @@ curl http://localhost:8080/api/stocks
 
 ## 4 — Database (Supabase)
 
-The backend uses **JPA with `ddl-auto: update`** — it creates/updates tables automatically on first startup. You do **not** need to run any SQL manually.
+The backend uses **JPA with `ddl-auto: update`** — it creates and updates tables automatically on first startup. You do **not** need to run any SQL manually.
 
-Tables created automatically:
-- `stocks` — inventory items
-- `bills` — customer invoices
-- `bill_items` — line items on each bill
-- `bill_history` — edit snapshots for audit trail
-- `categories` — product categories (seeded on first run)
+### Tables created automatically
 
-Default categories seeded on startup:
-1. Tiles
-2. Electronics
-3. Sanitary Ware
-4. Faucets & Fixtures
-5. Hardware
-6. Other
+| Table | Description |
+|-------|-------------|
+| `stocks` | Inventory items (design name, size, type, box counts, price) |
+| `bills` | Customer invoices (bill number, customer, totals, GST) |
+| `bill_items` | Line items on each bill (linked to stock) |
+| `bill_history` | Edit snapshots — full audit trail of every bill change |
+| `product_categories` | Product categories (seeded on first run) |
+
+### Default categories seeded on first startup
+
+| ID | Name | Slug |
+|----|------|------|
+| 1 | Tiles | tiles |
+| 2 | Electronics | electronics |
+| 3 | Sanitary Ware | sanitary-ware |
+| 4 | Faucets & Fixtures | faucets |
+| 5 | Hardware | hardware |
+| 6 | Other | other |
+
+### Stock table fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | Long | Auto-generated primary key |
+| `design_name` | String | Product name |
+| `size` | String | e.g. 24x24, 12x18 |
+| `type` | String | e.g. Ceramic, Porcelain |
+| `initial_boxes` | Integer | Boxes when first added |
+| `sold_boxes` | Integer | Total boxes sold so far |
+| `total_boxes` | Integer | Current remaining boxes |
+| `price_per_box` | Double | Price per box |
+| `category_id` | Long | FK to product_categories |
+| `created_at` | Timestamp | Auto-set on create |
+| `updated_at` | Timestamp | Auto-set on update |
+
+### Bill table fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | Long | Auto-generated primary key |
+| `bill_number` | String | Unique e.g. INV-20260422-001 |
+| `customer_name` | String | Customer full name |
+| `phone_number` | String | 10-digit phone |
+| `subtotal` | Double | Sum before GST/discount |
+| `gst_rate` | Double | GST % (0, 5, 12, 18, 28) |
+| `gst_type` | String | INCLUSIVE or EXCLUSIVE |
+| `gst_amount` | Double | Calculated GST amount |
+| `discount` | Double | Flat discount amount |
+| `total_amount` | Double | Final amount |
+| `is_edited` | Boolean | True if bill was ever edited |
+| `edited_at` | Timestamp | When last edited |
+| `created_at` | Timestamp | Auto-set on create |
+| `updated_at` | Timestamp | Auto-set on update |
 
 ---
 
@@ -264,15 +299,14 @@ Default categories seeded on startup:
 Open **two terminals**:
 
 **Terminal 1 — Backend:**
-```bash
-cd Shop-Site/backend
-export DB_PASSWORD=your_password   # plus other env vars
-./mvnw spring-boot:run
+```powershell
+cd backend
+$env:DB_PASSWORD="your_supabase_password"
+mvn spring-boot:run
 ```
 
 **Terminal 2 — Frontend:**
 ```bash
-cd Shop-Site
 npm run dev
 ```
 
@@ -302,13 +336,13 @@ Then open **http://localhost:3000** in your browser.
 |--------|----------|-------------|
 | GET | `/api/stocks` | Get all stocks |
 | GET | `/api/stocks/{id}` | Get stock by ID |
-| GET | `/api/stocks/search?q=` | Search by design name |
-| GET | `/api/stocks/low-stock?threshold=10` | Low stock items |
+| GET | `/api/stocks/search?q=` | Search by design name, size, type |
+| GET | `/api/stocks/low-stock?threshold=10` | Items below threshold |
 | GET | `/api/stocks/stats/total` | Total item count |
 | GET | `/api/stocks/stats/low-count` | Low stock count |
 | POST | `/api/stocks` | Create stock |
 | PUT | `/api/stocks/{id}` | Update stock |
-| PATCH | `/api/stocks/{id}/adjust?delta=` | Adjust box count |
+| PATCH | `/api/stocks/{id}/adjust?delta=` | Adjust box count (+ or -) |
 | DELETE | `/api/stocks/{id}` | Delete stock |
 
 ### Bills
@@ -316,34 +350,48 @@ Then open **http://localhost:3000** in your browser.
 |--------|----------|-------------|
 | GET | `/api/bills` | Get all bills |
 | GET | `/api/bills/{id}` | Get bill by numeric ID |
-| GET | `/api/bills/number/{billNumber}` | Get bill by bill number |
-| GET | `/api/bills/search?q=` | Search bills |
+| GET | `/api/bills/number/{billNumber}` | Get bill by bill number string |
+| GET | `/api/bills/search?q=` | Search by bill number / customer / phone |
 | GET | `/api/bills/next-bill-number` | Auto-generate next bill number |
-| GET | `/api/bills/by-stock?designName=` | Bills containing a stock item |
-| POST | `/api/bills` | Create bill (deducts stock) |
-| POST | `/api/bills/check-bill-number` | Check if bill number exists |
-| PUT | `/api/bills/{billNumber}` | Update bill (restores+rededucts stock) |
+| GET | `/api/bills/by-stock?designName=` | Bills containing a stock design |
+| GET | `/api/bills/filter/today` | Today's bills |
+| GET | `/api/bills/filter/past-week` | Last 7 days |
+| GET | `/api/bills/filter/past-month` | Last 30 days |
+| POST | `/api/bills` | Create bill (auto-deducts stock) |
+| POST | `/api/bills/check-bill-number` | Check if bill number already exists |
+| PUT | `/api/bills/{billNumber}` | Update bill (restores old stock, deducts new) |
 | DELETE | `/api/bills/{billNumber}` | Delete bill (restores stock) |
 
 ### Categories
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/categories` | Get all categories |
+| GET | `/api/categories/{id}` | Get category by ID |
+| GET | `/api/categories/slug/{slug}` | Get category by slug |
+| POST | `/api/categories` | Create new category |
+
+### Dashboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dashboard/stats` | Total items, low stock count, total bills, today's revenue |
+| GET | `/api/dashboard/low-stock` | Low stock items with count |
 
 ---
 
 ## 8 — CSV Upload Format
 
-To bulk-upload stock via CSV, use this exact format:
+To bulk-upload stock via CSV, use this exact column order:
 
 ```csv
-design_name,type,size,total_boxes
-Premium Marble Tile,Ceramic,12x12,150
-Granite Tile,Natural Stone,18x18,100
-Porcelain White,Porcelain,24x24,200
+design_name,type,size,total_boxes,price_per_box
+Premium Marble Tile,Ceramic,12x12,150,450
+Granite Tile,Natural Stone,18x18,100,800
+Porcelain White,Porcelain,24x24,200,350
 ```
 
-Download the template from the **Add Stock → Excel Upload** tab in the app.
+- `design_name`, `type`, `size`, `total_boxes` are **required**
+- `price_per_box` is optional (defaults to 0 if omitted)
+- First row must be the header row exactly as shown above
 
 ---
 
@@ -357,45 +405,54 @@ npm start
 
 Or deploy to **Vercel** (recommended):
 1. Push to GitHub
-2. Import repo in https://vercel.com
+2. Import repo at https://vercel.com
 3. Add env var: `NEXT_PUBLIC_API_URL=https://your-backend-url/api`
 
 ### Backend
 ```bash
 cd backend
-./mvnw clean package -DskipTests
+mvn clean package -DskipTests
 java -jar target/tiles-sanitary-backend-1.0.0.jar
 ```
 
-Set these env vars on your server/platform:
+Set these env vars on your server / deployment platform:
 ```
-DB_URL=jdbc:postgresql://...
-DB_USERNAME=postgres.your_ref
-DB_PASSWORD=your_password
+DB_URL=jdbc:postgresql://YOUR_SUPABASE_HOST:6543/postgres?prepareThreshold=0
+DB_USERNAME=postgres.your_project_ref
+DB_PASSWORD=your_supabase_password
 CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
 PORT=8080
 ```
 
-Deploy backend to **Railway**, **Render**, or **Fly.io**.
+Recommended backend deployment platforms: **Railway**, **Render**, **Fly.io**
 
 ---
 
 ## 10 — Common Issues
 
-**Backend won't start — `DB_PASSWORD` missing**
+**`DB_PASSWORD` env var not set — backend won't start**
 ```
 Could not resolve placeholder 'DB_PASSWORD'
 ```
-→ You must set the `DB_PASSWORD` env var. It has no default for security reasons.
+→ Set `DB_PASSWORD` as an environment variable before running. See section 3.2.
 
-**Frontend shows "backend not running"**  
-→ Make sure Spring Boot is running on port 8080 and `NEXT_PUBLIC_API_URL` matches.
+**`prepared statement "S_X" already exists` errors**
+```
+ERROR: prepared statement "S_7" already exists
+```
+→ Your JDBC URL is missing `?prepareThreshold=0`. Add it to the end of `DB_URL`. This is required for Supabase Session Pooler.
+
+**Frontend shows "backend not running" or "Failed to load"**  
+→ Make sure Spring Boot is running on port 8080 and `NEXT_PUBLIC_API_URL` in `.env.local` points to `http://localhost:8080/api`.
 
 **CORS error in browser console**  
-→ Make sure `CORS_ALLOWED_ORIGINS` on the backend matches your frontend URL exactly (no trailing slash).
+→ `CORS_ALLOWED_ORIGINS` on the backend must match your frontend URL exactly — no trailing slash, correct protocol (http vs https).
 
 **Tables not created on startup**  
-→ Check your DB credentials. JPA will log the error. Make sure the Supabase project is active (free projects pause after 1 week of inactivity).
+→ Check DB credentials. JPA logs the error on startup. Also check that your Supabase project is active — free projects pause after 1 week of inactivity. Resume it from the Supabase dashboard.
 
-**Duplicate design name error on stock create**  
-→ Each design name must be unique within a category. Use a different name or different category.
+**Duplicate design name error when creating stock**  
+→ Each design name must be unique within the same category. Use a different name or assign to a different category.
+
+**Bill number already exists error**  
+→ The bill number auto-generates on page load. If you see this error, refresh the sales page to get a fresh number.

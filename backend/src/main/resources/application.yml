@@ -3,8 +3,8 @@ spring:
     name: tiles-sanitary-backend
 
   datasource:
-    url: jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
-    username: postgres.recnnsniwonmtoutfyqt
+    url: ${DB_URL:jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?prepareThreshold=0}
+    username: ${DB_USERNAME:postgres.recnnsniwonmtoutfyqt}
     password: gorthipranay
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -45,7 +45,5 @@ logging:
     root: INFO
     com.inventory: INFO
 
-# CORS — override with env var CORS_ALLOWED_ORIGINS for production
-# e.g. CORS_ALLOWED_ORIGINS=https://your-app.vercel.app
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}

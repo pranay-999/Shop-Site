@@ -1,23 +1,24 @@
 import { z } from 'zod';
 
-// Stock validation
+// Stock validation — fields match StockDTO from the Java backend
 export const stockSchema = z.object({
   designName: z.string().min(1, 'Design name is required'),
   size: z.string().min(1, 'Size is required'),
   type: z.string().min(1, 'Type is required'),
-  noOfBoxes: z.number().min(1, 'Number of boxes must be at least 1'),
-  price: z.number().min(0, 'Price must be a positive number'),
+  totalBoxes: z.number().min(1, 'Number of boxes must be at least 1'),
+  pricePerBox: z.number().min(0, 'Price must be a positive number'),
+  categoryId: z.number().min(1, 'Category is required'),
 });
 
 export type StockFormData = z.infer<typeof stockSchema>;
 
-// Bill Item validation
+// Bill Item validation — fields match BillItemDTO
 export const billItemSchema = z.object({
   stockId: z.number().min(1, 'Stock item is required'),
   designName: z.string(),
-  noOfBoxes: z.number().min(1, 'Quantity must be at least 1'),
+  quantityBoxes: z.number().min(1, 'Quantity must be at least 1'),
   pricePerBox: z.number().min(0, 'Price must be a positive number'),
-  totalAmount: z.number(),
+  totalPrice: z.number(),
 });
 
 export type BillItemFormData = z.infer<typeof billItemSchema>;

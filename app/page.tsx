@@ -361,7 +361,11 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              {navigationCards.map((card) => {
+              {navigationCards.filter(card =>
+                !searchQuery.trim() ||
+                card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                card.description.toLowerCase().includes(searchQuery.toLowerCase())
+              ).map((card) => {
                 const Icon = card.icon
                 return (
                   <Link
