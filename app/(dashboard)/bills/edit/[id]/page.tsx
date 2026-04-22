@@ -522,21 +522,23 @@ export default function EditBillPage() {
 
       <main className="container mx-auto px-4 py-8 max-w-[1800px]">
 
-        <Card className="mb-6 max-w-4xl mx-auto">
-          <CardHeader className="pb-4"><CardTitle>Bill Information</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Bill Number</Label>
-                <Input value={billData.bill_number} disabled />
+        <Card className="mb-6 max-w-4xl mx-auto border-0 shadow-sm">
+          <CardHeader className="pb-5 border-b border-border/40">
+            <CardTitle className="text-lg font-semibold">Bill Information</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-3 gap-5">
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium text-foreground/80">Bill Number</Label>
+                <Input value={billData.bill_number} disabled className="bg-muted/50 border-border/60" />
               </div>
-              <div className="space-y-2">
-                <Label>Customer Name *</Label>
-                <Input value={billData.customer_name} onChange={(e) => setBillData({ ...billData, customer_name: e.target.value })} />
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium text-foreground/80">Customer Name *</Label>
+                <Input value={billData.customer_name} onChange={(e) => setBillData({ ...billData, customer_name: e.target.value })} className="border-border/60 transition-all duration-200 focus-visible:ring-1 focus-visible:ring-primary/50" />
               </div>
-              <div className="space-y-2">
-                <Label>Phone Number *</Label>
-                <Input value={billData.customer_phone} onChange={(e) => setBillData({ ...billData, customer_phone: e.target.value })} />
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium text-foreground/80">Phone Number *</Label>
+                <Input value={billData.customer_phone} onChange={(e) => setBillData({ ...billData, customer_phone: e.target.value })} className="border-border/60 transition-all duration-200 focus-visible:ring-1 focus-visible:ring-primary/50" />
               </div>
             </div>
           </CardContent>
