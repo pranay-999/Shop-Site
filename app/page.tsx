@@ -2,68 +2,23 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { API_BASE } from "@/lib/api"
 import {
-  ArrowRight,
   Package,
   ShoppingCart,
   FileText,
   BarChart3,
-  Plus,
-  Layers,
-  Search,
   TrendingUp,
   AlertTriangle,
-  Edit,
-  MoreVertical,
-  Moon,
-  Sun,
+  Search,
 } from "lucide-react"
 import { CategorySelector } from "@/components/layout/category-selector"
+import { AppSidebar } from "@/components/layout/app-sidebar"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { useRef } from "react"
 
 export default function HomePage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
-  const [theme, setTheme] = useState<"light" | "dark">("light")
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const settingsMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const saved = localStorage.getItem("theme") as "light" | "dark" | null
-    const current = saved ?? "light"
-    setTheme(current)
-    if (current === "dark") {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
-  }, [])
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target as Node)) {
-        setSettingsOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  function toggleTheme() {
-    const next = theme === "light" ? "dark" : "light"
-    setTheme(next)
-    localStorage.setItem("theme", next)
-    if (next === "dark") {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
-    setSettingsOpen(false)
-  }
 
   const [stats, setStats] = useState({
     totalItems: 0,
@@ -156,113 +111,25 @@ export default function HomePage() {
     loadRecent()
   }, [])
 
-  const navigationCards = [
-    {
-      title: "Create Sale",
-      description: "Process new transactions and generate customer bills instantly",
-      href: "/sales",
-      icon: ShoppingCart,
-      color: "bg-[hsl(142,76%,36%)]/10 text-[hsl(142,76%,36%)]",
-      stat: `${stats.todaySales} today`,
-    },
-    {
-      title: "View Invoices",
-      description: "Access, print, and manage all your billing history",
-      href: "/bills",
-      icon: FileText,
-      color: "bg-[hsl(221,83%,53%)]/10 text-[hsl(221,83%,53%)]",
-      stat: null,
-    },
-    {
-      title: "Add New Stock",
-      description: "Quickly add new inventory items via manual entry or Excel upload",
-      href: "/stocks/add",
-      icon: Plus,
-      color: "bg-accent/10 text-accent",
-      stat: null,
-    },
-    {
-      title: "Manage Inventory",
-      description: "View, edit, and organize all your stock items in one place",
-      href: "/stocks",
-      icon: Package,
-      color: "bg-primary/10 text-primary",
-      stat: `${stats.totalItems} items`,
-    },
-    {
-      title: "Edit Bill",
-      description: "Search and modify existing bills by bill number or customer info",
-      href: "/bills/edit/search",
-      icon: Edit,
-      color: "bg-orange-500/10 text-orange-500",
-      stat: null,
-    },
-    {
-      title: "Analytics Dashboard",
-      description: "Track sales trends, low stock alerts, and performance metrics",
-      href: "/analytics",
-      icon: BarChart3,
-      color: "bg-destructive/10 text-destructive",
-      stat: stats.lowStock > 0 ? `${stats.lowStock} low stock alerts` : null,
-    },
-  ]
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 md:px-6 py-4">
-          {/* Top row: logo on left, category + settings on right */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-lg">
-                <Layers className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">StockFlow</h1>
-                <p className="text-sm text-muted-foreground">Tiles & Sanitary Management System</p>
-              </div>
+    <AppSidebar>
+      <div className="min-h-screen">
+        {/* Page Header */}
+        <header className="border-b bg-card/50 px-4 py-4 md:px-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Welcome back! Here&apos;s an overview of your business.</p>
             </div>
-
-            {/* Right side: Category selector + Settings */}
             <div className="flex items-center gap-3">
               <CategorySelector />
-              <div className="relative" ref={settingsMenuRef}>
-                <button
-                  onClick={() => setSettingsOpen(!settingsOpen)}
-                  className="p-2 rounded-md hover:bg-muted transition-colors"
-                  aria-label="Settings"
-                >
-                  <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                </button>
-                {settingsOpen && (
-                  <div className="absolute right-0 mt-1 w-48 rounded-md border bg-card shadow-lg z-50">
-                    <button
-                      onClick={toggleTheme}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted transition-colors rounded-md"
-                    >
-                      {theme === "light" ? (
-                        <>
-                          <Moon className="h-4 w-4" />
-                          Switch to Dark Mode
-                        </>
-                      ) : (
-                        <>
-                          <Sun className="h-4 w-4" />
-                          Switch to Light Mode
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <section className="py-6 border-b bg-card/50">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 max-w-6xl mx-auto">
+        {/* Stats Section */}
+        <section className="border-b bg-card/50 px-4 py-6 md:px-6">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <div className="p-4 bg-card border rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -296,7 +163,7 @@ export default function HomePage() {
                   <ShoppingCart className="h-5 w-5 text-[hsl(142,76%,36%)]" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Bills</p>
+                  <p className="text-sm text-muted-foreground">Today&apos;s Bills</p>
                   <p className="text-2xl font-bold">{stats.todaySales}</p>
                 </div>
               </div>
@@ -344,82 +211,84 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <div className="container mx-auto px-4 md:px-6 py-8">
-        <div className="max-w-6xl mx-auto grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Quick search products or bills..."
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+        {/* Main Content */}
+        <div className="px-4 py-6 md:px-6">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Search & Quick Actions */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Quick search products or bills..."
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {navigationCards.filter(card =>
-                !searchQuery.trim() ||
-                card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                card.description.toLowerCase().includes(searchQuery.toLowerCase())
-              ).map((card) => {
-                const Icon = card.icon
-                return (
-                  <Link
-                    key={card.href}
-                    href={card.href}
-                    className="group relative bg-card border rounded-xl p-6 hover:border-primary hover:shadow-lg transition-all duration-200"
-                  >
-                    <div className="flex flex-col h-full">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className={`w-12 h-12 rounded-lg ${card.color} flex items-center justify-center`}>
-                          <Icon className="h-6 w-6" />
-                        </div>
-                        {card.stat && (
-                          <Badge variant="secondary" className="text-xs">
-                            {card.stat}
-                          </Badge>
-                        )}
-                      </div>
-                      <h4 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
-                        {card.title}
-                      </h4>
-                      <p className="text-muted-foreground leading-relaxed mb-4 flex-grow text-sm">{card.description}</p>
-                      <div className="flex items-center gap-2 text-primary font-medium text-sm">
-                        <span>Get started</span>
-                        <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                      </div>
+              {/* Quick Stats Cards */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Inventory Overview</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Total Products</span>
+                      <span className="font-semibold">{stats.totalItems}</span>
                     </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="lg:col-span-1">
-            <div className="bg-card border rounded-xl p-6 sticky top-24">
-              <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex gap-3 pb-4 border-b last:border-b-0 last:pb-0">
-                    <div
-                      className={`w-2 h-2 mt-2 rounded-full ${activity.type === "sale" ? "bg-[hsl(142,76%,36%)]" : "bg-primary"
-                        }`}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Low Stock Alerts</span>
+                      <span className={`font-semibold ${stats.lowStock > 0 ? "text-destructive" : ""}`}>
+                        {stats.lowStock}
+                      </span>
                     </div>
                   </div>
-                ))}
+                </div>
+
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Sales Summary</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Today</span>
+                      <span className="font-semibold">{stats.todaySales} bills</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">This Month</span>
+                      <span className="font-semibold">{stats.monthSales} bills</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="lg:col-span-1">
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
+                <div className="space-y-4">
+                  {recentActivity.length > 0 ? (
+                    recentActivity.map((activity) => (
+                      <div key={activity.id} className="flex gap-3 pb-4 border-b last:border-b-0 last:pb-0">
+                        <div
+                          className={`w-2 h-2 mt-2 rounded-full ${activity.type === "sale" ? "bg-[hsl(142,76%,36%)]" : "bg-primary"
+                            }`}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No recent activity</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </AppSidebar>
   )
 }
