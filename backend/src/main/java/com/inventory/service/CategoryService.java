@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.inventory.dto.CategoryDTO;
 import com.inventory.model.Category;
@@ -40,6 +41,7 @@ public class CategoryService {
             .orElseThrow(() -> new RuntimeException("Category not found: " + slug)));
     }
 
+    @Transactional
     public CategoryDTO createCategory(CategoryDTO dto) {
         Category c = new Category();
         c.setCategoryName(dto.getCategoryName());

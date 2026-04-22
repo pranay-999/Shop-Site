@@ -10,7 +10,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/dashboard")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class DashboardController {
     
     private final StockService stockService;

@@ -14,10 +14,16 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "bills")
+@Table(name = "bills", indexes = {
+    @Index(name = "idx_bills_bill_number",   columnList = "bill_number"),
+    @Index(name = "idx_bills_customer_name", columnList = "customer_name"),
+    @Index(name = "idx_bills_phone_number",  columnList = "phone_number"),
+    @Index(name = "idx_bills_created_at",    columnList = "created_at")
+})
 public class Bill {
 
     @Id

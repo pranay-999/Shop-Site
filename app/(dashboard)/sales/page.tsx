@@ -43,9 +43,8 @@ import { NavigationHeader } from "@/components/layout/navigation-header";
 import { getStocks } from "@/lib/services/stocks";
 import { createBill, checkBillNumberExists } from "@/lib/services/bills";
 import { useCategory } from "@/context/CategoryContext";
+import { API_BASE } from "@/lib/api";
 import type { Stock } from "@/lib/types";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
 type CartItem = {
   id: string;
@@ -94,7 +93,7 @@ export default function NewSalePage() {
   useEffect(() => {
     async function loadNextBillNumber() {
       try {
-        const res = await fetch(`${API}/bills/next-bill-number`);
+        const res = await fetch(`${API_BASE}/bills/next-bill-number`);
         const data = await res.json();
         setBillNumber(data.billNumber);
         // Save to localStorage so we remember it across restarts
@@ -306,7 +305,7 @@ export default function NewSalePage() {
         localStorage.setItem("lastBillNumber", localNext);
       } else {
         try {
-          const res = await fetch(`${API}/bills/next-bill-number`);
+          const res = await fetch(`${API_BASE}/bills/next-bill-number`);
           const data = await res.json();
           setBillNumber(data.billNumber);
           localStorage.setItem("lastBillNumber", data.billNumber);

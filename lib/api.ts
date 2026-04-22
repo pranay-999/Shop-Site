@@ -1,17 +1,30 @@
-// This is the base URL of your Java Spring Boot server.
-// When running locally: http://localhost:8080/api
-// When deployed: replace with your server's public URL
+// Base URL for the Java Spring Boot backend.
+// Set NEXT_PUBLIC_API_URL in your .env.local for deployment.
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"
 
-// A helper function to make requests to your Java backend
+// Typed fetch wrapper for all backend calls
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(options?.headers ?? {}),
+    },
     ...options,
   })
+
   if (!res.ok) {
-    const message = await res.text()
+    let message: string
+    try {
+      const body = await res.json()
+      message = body?.error ?? body?.message ?? res.statusText
+    } catch {
+      message = await res.text().catch(() => res.statusText)
+    }
     throw new Error(`API error ${res.status}: ${message}`)
   }
+
+  // Handle 204 No Content (DELETE endpoints)
+  if (res.status === 204) return undefined as T
+
   return res.json()
 }

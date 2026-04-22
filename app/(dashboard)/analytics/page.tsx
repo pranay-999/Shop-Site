@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, AlertTriangle, Package, ShoppingCart, IndianRupee, X, Printer, ArrowLeft } from "lucide-react"
 import { NavigationHeader } from "@/components/layout/navigation-header"
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"
+import { API_BASE } from "@/lib/api"
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
@@ -29,8 +28,8 @@ export default function AnalyticsPage() {
     async function loadData() {
       try {
         const [stocksRes, billsRes] = await Promise.all([
-          fetch(`${API}/stocks`),
-          fetch(`${API}/bills`),
+          fetch(`${API_BASE}/stocks`),
+          fetch(`${API_BASE}/bills`),
         ])
         const stocksData = await stocksRes.json()
         const billsData = await billsRes.json()

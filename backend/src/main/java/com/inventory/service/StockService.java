@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.inventory.dto.StockDTO;
 import com.inventory.model.Stock;
@@ -69,11 +70,13 @@ public class StockService {
             .stream().map(this::toDTO).toList();
     }
 
+    @Transactional
     public StockDTO createStock(StockDTO stockDTO) {
         Stock saved = stockRepository.save(toEntity(stockDTO));
         return toDTO(saved);
     }
 
+    @Transactional
     public StockDTO updateStock(@NonNull Long id, StockDTO stockDTO) {
         Stock existing = stockRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
@@ -92,6 +95,7 @@ public class StockService {
      * Negative delta = removing boxes (e.g. item added to bill).
      * This is called directly from the frontend as a fallback.
      */
+    @Transactional
     public StockDTO adjustStock(@NonNull Long id, int delta) {
         Stock stock = stockRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Stock not found with id: " + id));
@@ -104,6 +108,7 @@ public class StockService {
         return toDTO(stockRepository.save(stock));
     }
 
+    @Transactional
     public void deleteStock(@NonNull Long id) {
         if (!stockRepository.existsById(id)) {
             throw new RuntimeException("Stock not found with id: " + id);

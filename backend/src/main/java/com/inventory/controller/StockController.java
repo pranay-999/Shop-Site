@@ -10,7 +10,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/stocks")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class StockController {
 
     private final StockService stockService;
@@ -63,9 +62,8 @@ public class StockController {
 
     /**
      * Adjusts stock by a delta.
-     * Called by the edit-bill page as a fallback.
-     * delta > 0 → return boxes to inventory (item removed from bill)
-     * delta < 0 → deduct boxes from inventory (item added to bill)
+     * delta > 0  → return boxes to inventory (item removed from bill)
+     * delta < 0  → deduct boxes from inventory (item added to bill)
      */
     @PatchMapping("/{id}/adjust")
     public ResponseEntity<StockDTO> adjustStock(@PathVariable Long id, @RequestParam int delta) {

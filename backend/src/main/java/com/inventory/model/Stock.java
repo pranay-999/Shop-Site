@@ -4,62 +4,60 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "stocks")
+@Table(name = "stocks", indexes = {
+    @Index(name = "idx_stocks_design_name", columnList = "design_name"),
+    @Index(name = "idx_stocks_category_id", columnList = "category_id")
+})
 public class Stock {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(nullable = false)
     private String designName;
-    
+
     @Column(nullable = false)
     private String size;
-    
+
     @Column(nullable = false)
     private String type;
 
-    // nullable = true so PostgreSQL can add this column to existing rows without error.
-    // We treat null as 0 in the getters below.
     @Column(nullable = true)
     private Integer initialBoxes;
 
-    // nullable = true for the same reason.
     @Column(nullable = true)
     private Integer soldBoxes;
-    
+
     @Column(nullable = false)
     private Integer totalBoxes;
-    
+
     @Column(nullable = false)
     private Double pricePerBox;
-    
+
     @Column(nullable = false)
     private Long categoryId;
-    
-    @Column(nullable = false)
+
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     @Column(nullable = false)
     private LocalDateTime updatedAt;
-    
+
     public Stock() {}
 
-    public Stock(Long id, String designName, String size, String type,
-                 Integer totalBoxes, Double pricePerBox, Long categoryId,
-                 LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this.id = id;
-        this.designName = designName;
-        this.size = size;
-        this.type = type;
-        this.totalBoxes = totalBoxes;
-        this.initialBoxes = totalBoxes;
-        this.soldBoxes = 0;
-        this.pricePerBox = pricePerBox;
-        this.categoryId = categoryId;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+        if (this.soldBoxes == null) this.soldBoxes = 0;
+        if (this.initialBoxes == null) this.initialBoxes = this.totalBoxes;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     public Long getId() { return id; }

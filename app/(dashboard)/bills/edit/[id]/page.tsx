@@ -127,13 +127,13 @@ export default function EditBillPage() {
         const items: CartItem[] = (bill.items ?? []).map((item: any) => ({
           id:            String(item.id),
           stockId:       item.stockId ?? 0,
-          design_name:   item.designName,
-          size:          item.size,
-          type:          item.type,
-          boxes:         item.quantityBoxes,
-          originalBoxes: item.quantityBoxes,
-          pricePerBox:   item.pricePerBox,  // this is the original price stored in DB
-          total:         item.totalPrice,
+          design_name:   item.designName ?? "",
+          size:          item.size ?? "",
+          type:          item.type ?? "General", // fallback — backend requires non-empty type
+          boxes:         item.quantityBoxes ?? 0,
+          originalBoxes: item.quantityBoxes ?? 0,
+          pricePerBox:   item.pricePerBox ?? 0,  // DB-stored original price
+          total:         item.totalPrice ?? 0,
         }))
         setCartItems(items)
 
@@ -370,27 +370,8 @@ export default function EditBillPage() {
         return
       }
 
-      // Update inventory for changed/new items
-      const stockUpdates: { stockId: number; delta: number }[] = []
-      for (const item of cartItems) {
-        if (!item.stockId) continue
-        const diff = item.boxes - item.originalBoxes
-        if (diff !== 0) stockUpdates.push({ stockId: item.stockId, delta: -diff })
-      }
-      // Restore boxes to inventory for items removed from this bill
-      for (const removed of removedItems) {
-        if (removed.stockId) stockUpdates.push({ stockId: removed.stockId, delta: removed.boxes })
-      }
-
-      await Promise.allSettled(
-        stockUpdates.map(({ stockId, delta }) =>
-          fetch(`${API_BASE}/stocks/${stockId}/adjust?delta=${delta}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-          })
-        )
-      )
-
+      // NOTE: Stock adjustment is handled atomically by the backend in updateBill()
+      // (restores old items, deducts new items). Do NOT call /adjust here — it would double-adjust.
       setRemovedItems([])
       setCartItems((prev) => prev.map((item) => ({ ...item, originalBoxes: item.boxes })))
       await refreshStocks()

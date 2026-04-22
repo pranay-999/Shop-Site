@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { API_BASE } from "@/lib/api"
 import {
   ArrowRight,
   Package,
@@ -65,47 +66,95 @@ export default function HomePage() {
   }
 
   const [stats, setStats] = useState({
-    totalItems: 142,
-    lowStock: 5,
+    totalItems: 0,
+    lowStock: 0,
     todaySales: 0,
     weekSales: 0,
     monthSales: 0,
-    totalRevenue: 45230,
+    totalRevenue: 0,
   })
 
   useEffect(() => {
-    const loadBillStats = async () => {
+    const loadStats = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/bills")
-        if (!res.ok) return
-        const bills: Array<{ createdAt?: string }> = await res.json()
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7)
-        const monthAgo = new Date(today); monthAgo.setMonth(monthAgo.getMonth() - 1)
-        let todaySales = 0, weekSales = 0, monthSales = 0
-        bills.forEach((b) => {
-          if (!b.createdAt) return
-          const d = new Date(b.createdAt)
-          if (d >= today) todaySales++
-          if (d >= weekAgo) weekSales++
-          if (d >= monthAgo) monthSales++
-        })
-        setStats((prev) => ({ ...prev, todaySales, weekSales, monthSales }))
+        // Fetch all in parallel
+        const [billsRes, totalItemsRes, lowStockRes] = await Promise.allSettled([
+          fetch(`${API_BASE}/bills`),
+          fetch(`${API_BASE}/stocks/stats/total`),
+          fetch(`${API_BASE}/stocks/stats/low-count`),
+        ])
+
+        // Process bills
+        let todaySales = 0, weekSales = 0, monthSales = 0, totalRevenue = 0
+        if (billsRes.status === "fulfilled" && billsRes.value.ok) {
+          const bills: Array<{ createdAt?: string; totalAmount?: number }> = await billsRes.value.json()
+          const now = new Date()
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7)
+          const monthAgo = new Date(today); monthAgo.setMonth(monthAgo.getMonth() - 1)
+          bills.forEach((b) => {
+            totalRevenue += b.totalAmount ?? 0
+            if (!b.createdAt) return
+            const d = new Date(b.createdAt)
+            if (d >= today) todaySales++
+            if (d >= weekAgo) weekSales++
+            if (d >= monthAgo) monthSales++
+          })
+        }
+
+        // Process stock counts
+        let totalItems = 0, lowStock = 0
+        if (totalItemsRes.status === "fulfilled" && totalItemsRes.value.ok) {
+          totalItems = await totalItemsRes.value.json()
+        }
+        if (lowStockRes.status === "fulfilled" && lowStockRes.value.ok) {
+          lowStock = await lowStockRes.value.json()
+        }
+
+        setStats({ totalItems, lowStock, todaySales, weekSales, monthSales, totalRevenue })
       } catch {
-        // backend not running — keep default zeros
+        // backend not running — keep zeros
       }
     }
-    loadBillStats()
+    loadStats()
   }, [])
 
-  const recentActivity = [
-    { id: "1", type: "sale", description: "Sale to Rajesh Kumar - ₹5,015", time: "10 minutes ago" },
-    { id: "2", type: "stock", description: "Added Premium Marble Tile - 50 boxes", time: "1 hour ago" },
-    { id: "3", type: "sale", description: "Sale to Priya Sharma - ₹12,450", time: "2 hours ago" },
-    { id: "4", type: "stock", description: "Added Classic Floor Tile - 80 boxes", time: "3 hours ago" },
-    { id: "5", type: "sale", description: "Sale to Amit Patel - ₹8,920", time: "5 hours ago" },
-  ]
+  const [recentActivity, setRecentActivity] = useState<
+    { id: string; type: string; description: string; time: string }[]
+  >([])
+
+  useEffect(() => {
+    const loadRecent = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/bills`)
+        if (!res.ok) return
+        const bills: Array<{
+          id: number; billNumber: string; customerName: string;
+          totalAmount?: number; createdAt?: string
+        }> = await res.json()
+        const sorted = [...bills]
+          .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+          .slice(0, 5)
+        const now = Date.now()
+        setRecentActivity(sorted.map((b) => {
+          const diff = now - new Date(b.createdAt ?? now).getTime()
+          const mins = Math.floor(diff / 60000)
+          const hrs = Math.floor(mins / 60)
+          const days = Math.floor(hrs / 24)
+          const time = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : mins < 1 ? "just now" : `${mins}m ago`
+          return {
+            id: String(b.id),
+            type: "sale",
+            description: `Sale to ${b.customerName} — ₹${(b.totalAmount ?? 0).toLocaleString("en-IN")}`,
+            time,
+          }
+        }))
+      } catch {
+        // keep empty — backend not running
+      }
+    }
+    loadRecent()
+  }, [])
 
   const navigationCards = [
     {

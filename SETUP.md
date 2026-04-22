@@ -1,218 +1,401 @@
-# Tiles & Sanitary Shop - Full Stack Setup Guide
+# StockFlow — Setup Guide
 
-This project is organized with a **Frontend (Next.js)** and **Backend (Java Spring Boot)** architecture.
+Tiles & Sanitary Inventory Management System  
+**Frontend:** Next.js 15 · TypeScript · Tailwind · shadcn/ui  
+**Backend:** Spring Boot 3.2 · Java 17 · JPA  
+**Database:** Supabase (PostgreSQL)
+
+---
 
 ## Project Structure
 
 ```
-tiles-sanitary-shop/
-├── frontend/                  ← Next.js 16 Frontend
-│   ├── app/                   ← Next.js App Router
-│   ├── components/            ← React Components
-│   ├── lib/
-│   │   ├── api.ts            ← API calls to Java backend
-│   │   └── validations.ts    ← Zod validation schemas
-│   ├── types/
-│   │   └── index.ts          ← TypeScript types
-│   ├── .env.local.example    ← Copy to .env.local
-│   └── package.json
+Shop-Site/
 │
-└── backend/                   ← Java Spring Boot Backend
-    ├── src/main/java/com/inventory/
-    │   ├── TilesSanitaryBackendApplication.java
-    │   ├── controller/        ← REST endpoints
-    │   ├── service/          ← Business logic
-    │   ├── repository/       ← Database access
-    │   ├── model/            ← JPA entities
-    │   ├── dto/              ← Data transfer objects
-    │   └── exception/        ← Error handling
-    ├── src/main/resources/
-    │   ├── application.yml   ← Database configuration
-    │   ├── schema.sql        ← Database schema
-    │   └── data.sql          ← Sample data
-    └── pom.xml              ← Maven dependencies
-
+├── app/                              # Next.js App Router (pages)
+│   ├── (dashboard)/                  # Route group — all main pages
+│   │   ├── analytics/page.tsx        # Analytics dashboard
+│   │   ├── bills/
+│   │   │   ├── page.tsx              # View & manage all bills
+│   │   │   ├── loading.tsx
+│   │   │   └── edit/
+│   │   │       ├── [id]/page.tsx     # Edit bill by numeric ID
+│   │   │       ├── [id]/loading.tsx
+│   │   │       └── search/page.tsx   # Search bill to edit
+│   │   ├── sales/
+│   │   │   ├── page.tsx              # Create new sale / bill
+│   │   │   └── loading.tsx
+│   │   └── stocks/
+│   │       ├── page.tsx              # Manage inventory
+│   │       ├── loading.tsx
+│   │       └── add/page.tsx          # Add stock (manual or CSV)
+│   ├── globals.css                   # Global styles + Tailwind CSS vars
+│   ├── layout.tsx                    # Root layout (providers, metadata)
+│   ├── loading.tsx                   # Root loading spinner
+│   └── page.tsx                      # Homepage / dashboard
+│
+├── components/                       # Reusable components
+│   ├── layout/
+│   │   ├── navigation-header.tsx     # Top nav with breadcrumbs + theme toggle
+│   │   └── category-selector.tsx     # Category dropdown (Tiles / Sanitary etc.)
+│   ├── theme-provider.tsx
+│   └── ui/                           # shadcn/ui primitives (auto-generated)
+│       └── (button, card, dialog, table, select …)
+│
+├── context/
+│   └── CategoryContext.tsx           # Global selected-category state
+│
+├── hooks/
+│   ├── use-mobile.ts
+│   └── use-toast.ts
+│
+├── lib/
+│   ├── api.ts                        # apiFetch helper + API_BASE env var
+│   ├── types.ts                      # Shared TypeScript types (Stock, Bill …)
+│   ├── utils.ts                      # cn() utility
+│   ├── validations.ts
+│   └── services/
+│       ├── stocks.ts                 # Stock API calls
+│       ├── bills.ts                  # Bill API calls
+│       └── index.ts
+│
+├── public/                           # Static assets
+│   ├── icon.svg
+│   ├── icon-light-32x32.png
+│   ├── icon-dark-32x32.png
+│   └── apple-icon.png
+│
+├── backend/                          # Spring Boot backend
+│   ├── src/main/java/com/inventory/
+│   │   ├── TilesSanitaryBackendApplication.java
+│   │   ├── config/
+│   │   │   ├── WebConfig.java        # Global CORS config
+│   │   │   ├── DataInitializer.java  # Seeds default categories on startup
+│   │   │   └── StorageModeLogger.java
+│   │   ├── controller/
+│   │   │   ├── StockController.java
+│   │   │   ├── BillController.java
+│   │   │   ├── CategoryController.java
+│   │   │   └── DashboardController.java
+│   │   ├── service/
+│   │   │   ├── StockService.java
+│   │   │   ├── BillService.java
+│   │   │   └── CategoryService.java
+│   │   ├── model/
+│   │   │   ├── Stock.java
+│   │   │   ├── Bill.java
+│   │   │   ├── BillItem.java
+│   │   │   ├── BillHistory.java
+│   │   │   └── Category.java
+│   │   ├── dto/
+│   │   │   ├── StockDTO.java
+│   │   │   ├── BillDTO.java
+│   │   │   ├── BillItemDTO.java
+│   │   │   ├── BillSnapshotDTO.java
+│   │   │   └── CategoryDTO.java
+│   │   └── repository/
+│   │       ├── StockRepository.java
+│   │       ├── BillRepository.java
+│   │       ├── BillHistoryRepository.java
+│   │       └── CategoryRepository.java
+│   ├── src/main/resources/
+│   │   └── application.yml           # Spring Boot config (DB, CORS, server)
+│   ├── pom.xml
+│   └── .env.example                  # Backend env var template
+│
+├── .env.example                      # Frontend env var template
+├── .gitignore
+├── components.json                   # shadcn/ui config
+├── eslint.config.mjs
+├── next.config.mjs
+├── package.json
+├── postcss.config.mjs
+└── tsconfig.json
 ```
 
-## Backend Setup (Java Spring Boot)
+---
 
-### Prerequisites
-- Java 17 or higher
-- Maven 3.8+
-- MySQL or PostgreSQL
+## Prerequisites
 
-### Installation Steps
+| Tool | Version | Install |
+|------|---------|---------|
+| Node.js | 18+ | https://nodejs.org |
+| Java JDK | 17+ | https://adoptium.net |
+| Maven | 3.8+ | bundled via `mvnw` |
+| Git | any | https://git-scm.com |
 
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-   ```
+You also need a **Supabase** project. Get one free at https://supabase.com.
 
-2. **Create database:**
-   ```sql
-   CREATE DATABASE tiles_sanitary_db;
-   ```
+---
 
-3. **Configure database connection** in `src/main/resources/application.yml`:
-   ```yaml
-   spring:
-     datasource:
-       url: jdbc:mysql://localhost:3306/tiles_sanitary_db
-       username: root
-       password: your_password
-     jpa:
-       hibernate:
-         ddl-auto: update
-   ```
+## 1 — Clone the Repo
 
-4. **Build the project:**
-   ```bash
-   mvn clean install
-   ```
+```bash
+git clone https://github.com/pranay-999/Shop-Site.git
+cd Shop-Site
+```
 
-5. **Run the application:**
-   ```bash
-   mvn spring-boot:run
-   ```
+---
 
-   The backend will start on `http://localhost:8080`
+## 2 — Frontend Setup (Next.js)
 
-### API Endpoints
+### 2.1 Install dependencies
 
-**Stock Management:**
-- `GET /api/stocks` - Get all stocks
-- `GET /api/stocks/{id}` - Get stock by ID
-- `GET /api/stocks/search?q=keyword` - Search stocks
-- `POST /api/stocks` - Create new stock
-- `PUT /api/stocks/{id}` - Update stock
-- `DELETE /api/stocks/{id}` - Delete stock
-- `GET /api/stocks/low-stock` - Get low stock items
+```bash
+npm install
+```
 
-**Bill Management:**
-- `GET /api/bills` - Get all bills
-- `GET /api/bills/{id}` - Get bill by ID
-- `GET /api/bills/search/by-number?billNumber=XXX` - Search by bill number
-- `GET /api/bills/search?customerName=XXX&customerPhone=XXX` - Search by customer
-- `POST /api/bills` - Create new bill
-- `PUT /api/bills/{id}` - Update bill
-- `DELETE /api/bills/{id}` - Delete bill
-- `GET /api/bills/filter?startDate=XXX&endDate=XXX` - Filter by date range
-- `GET /api/bills/check-number?billNumber=XXX` - Check if bill number exists
+### 2.2 Create your environment file
 
-**Dashboard:**
-- `GET /api/dashboard/stats` - Get dashboard statistics
-- `GET /api/dashboard/recent-activity?limit=5` - Get recent activity
+```bash
+cp .env.example .env.local
+```
 
-## Frontend Setup (Next.js)
+Edit `.env.local`:
 
-### Prerequisites
-- Node.js 18+ and npm/yarn
-- Backend running on localhost:8080
+```env
+# URL of your Spring Boot backend
+# Local dev:
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
 
-### Installation Steps
+# Production (replace with your deployed backend URL):
+# NEXT_PUBLIC_API_URL=https://your-backend.railway.app/api
+```
 
-1. **Navigate to frontend directory:**
-   ```bash
-   cd frontend
-   ```
+### 2.3 Start the dev server
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+npm run dev
+```
 
-3. **Configure environment variables:**
-   ```bash
-   cp .env.local.example .env.local
-   ```
+Opens at **http://localhost:3000**
 
-   Update `.env.local` if your backend is running on a different URL:
-   ```
-   NEXT_PUBLIC_API_URL=http://localhost:8080/api
-   ```
+---
 
-4. **Run development server:**
-   ```bash
-   npm run dev
-   ```
+## 3 — Backend Setup (Spring Boot)
 
-   Frontend will be available at `http://localhost:3000`
+### 3.1 Create your environment file
 
-## Features
+```bash
+cp backend/.env.example backend/.env
+```
 
-### Stock Management
-- View all stocks with real-time data from Java backend
-- Search stocks by design name
-- Add new stock items (design name, size, type, quantity, price)
-- Edit existing stocks
-- Delete stocks
-- Low stock alerts
+Edit `backend/.env`:
 
-### Sales Management
-- Create bills with customer information
-- Search and add items to cart
-- Adjust prices per item
-- Automatic stock lookup when typing design name
-- GST calculation (Exclusive/Inclusive)
-- Discount options
-- Validate duplicate bill numbers
-- Edit and delete items in cart
+```env
+DB_URL=jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+DB_USERNAME=postgres.your_project_ref
+DB_PASSWORD=your_supabase_db_password
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+```
 
-### Bill Management
-- View all bills and invoices
-- Edit existing bills
-- Search bills by customer name or phone
-- Filter bills by date ranges (Today, Yesterday, Past Week, Month, 6 Months, Year, Custom)
-- Print bills
-- Download bills
-- View bill details and edit them
+> **Where to find these values:**  
+> Supabase dashboard → Project Settings → Database → Connection string (Transaction pooler)
 
-### Dashboard
-- Total items in stock
-- Low stock alerts count
-- Today's sales revenue
-- Total revenue
-- Recent activity feed
-- Quick search functionality
+### 3.2 Run the backend
 
-## Troubleshooting
+**On macOS / Linux:**
+```bash
+cd backend
+export DB_URL=jdbc:postgresql://...
+export DB_USERNAME=postgres.your_project_ref
+export DB_PASSWORD=your_supabase_password
+export CORS_ALLOWED_ORIGINS=http://localhost:3000
 
-### Frontend can't connect to backend
-- Ensure Java backend is running on `localhost:8080`
-- Check `.env.local` has correct `NEXT_PUBLIC_API_URL`
-- Check browser console for CORS errors
-- Backend CORS should be configured to accept requests from `localhost:3000`
+./mvnw spring-boot:run
+```
 
-### Database connection errors
-- Verify database is running
-- Check `application.yml` has correct credentials
-- Ensure database schema is created (run `schema.sql`)
+**On Windows (Command Prompt):**
+```cmd
+cd backend
+set DB_URL=jdbc:postgresql://...
+set DB_USERNAME=postgres.your_project_ref
+set DB_PASSWORD=your_supabase_password
+set CORS_ALLOWED_ORIGINS=http://localhost:3000
 
-### Port already in use
-- Backend: Change port in `application.yml` (default 8080)
-- Frontend: Use `npm run dev -- -p 3001` for different port
+mvnw.cmd spring-boot:run
+```
 
-## Development Workflow
+**On Windows (PowerShell):**
+```powershell
+cd backend
+$env:DB_URL="jdbc:postgresql://..."
+$env:DB_USERNAME="postgres.your_project_ref"
+$env:DB_PASSWORD="your_supabase_password"
+$env:CORS_ALLOWED_ORIGINS="http://localhost:3000"
 
-1. Make changes to Java backend → Backend automatically reloads via Spring DevTools
-2. Make changes to Next.js frontend → Frontend hot-reloads automatically
-3. Both applications need to be running for full functionality
+.\mvnw spring-boot:run
+```
 
-## Production Deployment
+Backend starts at **http://localhost:8080/api**
 
-**Backend (Java):**
-- Build JAR: `mvn clean package`
-- Deploy to production server (AWS EC2, Heroku, etc.)
-- Update frontend's `NEXT_PUBLIC_API_URL` environment variable
+### 3.3 Verify it's running
 
-**Frontend (Next.js):**
-- Build: `npm run build`
-- Deploy to Vercel, Netlify, or your own server
-- Set production API URL in environment variables
+```bash
+curl http://localhost:8080/api/stocks
+# Should return [] or a list of stocks
+```
 
-## Support
+---
 
-For issues or questions, please refer to:
-- [Spring Boot Documentation](https://spring.io/projects/spring-boot)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Java Documentation](https://docs.oracle.com/javase/)
+## 4 — Database (Supabase)
+
+The backend uses **JPA with `ddl-auto: update`** — it creates/updates tables automatically on first startup. You do **not** need to run any SQL manually.
+
+Tables created automatically:
+- `stocks` — inventory items
+- `bills` — customer invoices
+- `bill_items` — line items on each bill
+- `bill_history` — edit snapshots for audit trail
+- `categories` — product categories (seeded on first run)
+
+Default categories seeded on startup:
+1. Tiles
+2. Electronics
+3. Sanitary Ware
+4. Faucets & Fixtures
+5. Hardware
+6. Other
+
+---
+
+## 5 — Running Both Together
+
+Open **two terminals**:
+
+**Terminal 1 — Backend:**
+```bash
+cd Shop-Site/backend
+export DB_PASSWORD=your_password   # plus other env vars
+./mvnw spring-boot:run
+```
+
+**Terminal 2 — Frontend:**
+```bash
+cd Shop-Site
+npm run dev
+```
+
+Then open **http://localhost:3000** in your browser.
+
+---
+
+## 6 — Available Routes
+
+| URL | Page |
+|-----|------|
+| `/` | Homepage — stats + quick nav |
+| `/stocks` | Manage inventory |
+| `/stocks/add` | Add stock (manual or CSV upload) |
+| `/sales` | Create a new sale / bill |
+| `/bills` | View all invoices |
+| `/bills/edit/search` | Search for a bill to edit |
+| `/bills/edit/[id]` | Edit a specific bill |
+| `/analytics` | Sales analytics dashboard |
+
+---
+
+## 7 — API Endpoints Reference
+
+### Stocks
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stocks` | Get all stocks |
+| GET | `/api/stocks/{id}` | Get stock by ID |
+| GET | `/api/stocks/search?q=` | Search by design name |
+| GET | `/api/stocks/low-stock?threshold=10` | Low stock items |
+| GET | `/api/stocks/stats/total` | Total item count |
+| GET | `/api/stocks/stats/low-count` | Low stock count |
+| POST | `/api/stocks` | Create stock |
+| PUT | `/api/stocks/{id}` | Update stock |
+| PATCH | `/api/stocks/{id}/adjust?delta=` | Adjust box count |
+| DELETE | `/api/stocks/{id}` | Delete stock |
+
+### Bills
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/bills` | Get all bills |
+| GET | `/api/bills/{id}` | Get bill by numeric ID |
+| GET | `/api/bills/number/{billNumber}` | Get bill by bill number |
+| GET | `/api/bills/search?q=` | Search bills |
+| GET | `/api/bills/next-bill-number` | Auto-generate next bill number |
+| GET | `/api/bills/by-stock?designName=` | Bills containing a stock item |
+| POST | `/api/bills` | Create bill (deducts stock) |
+| POST | `/api/bills/check-bill-number` | Check if bill number exists |
+| PUT | `/api/bills/{billNumber}` | Update bill (restores+rededucts stock) |
+| DELETE | `/api/bills/{billNumber}` | Delete bill (restores stock) |
+
+### Categories
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/categories` | Get all categories |
+
+---
+
+## 8 — CSV Upload Format
+
+To bulk-upload stock via CSV, use this exact format:
+
+```csv
+design_name,type,size,total_boxes
+Premium Marble Tile,Ceramic,12x12,150
+Granite Tile,Natural Stone,18x18,100
+Porcelain White,Porcelain,24x24,200
+```
+
+Download the template from the **Add Stock → Excel Upload** tab in the app.
+
+---
+
+## 9 — Build for Production
+
+### Frontend
+```bash
+npm run build
+npm start
+```
+
+Or deploy to **Vercel** (recommended):
+1. Push to GitHub
+2. Import repo in https://vercel.com
+3. Add env var: `NEXT_PUBLIC_API_URL=https://your-backend-url/api`
+
+### Backend
+```bash
+cd backend
+./mvnw clean package -DskipTests
+java -jar target/tiles-sanitary-backend-1.0.0.jar
+```
+
+Set these env vars on your server/platform:
+```
+DB_URL=jdbc:postgresql://...
+DB_USERNAME=postgres.your_ref
+DB_PASSWORD=your_password
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+PORT=8080
+```
+
+Deploy backend to **Railway**, **Render**, or **Fly.io**.
+
+---
+
+## 10 — Common Issues
+
+**Backend won't start — `DB_PASSWORD` missing**
+```
+Could not resolve placeholder 'DB_PASSWORD'
+```
+→ You must set the `DB_PASSWORD` env var. It has no default for security reasons.
+
+**Frontend shows "backend not running"**  
+→ Make sure Spring Boot is running on port 8080 and `NEXT_PUBLIC_API_URL` matches.
+
+**CORS error in browser console**  
+→ Make sure `CORS_ALLOWED_ORIGINS` on the backend matches your frontend URL exactly (no trailing slash).
+
+**Tables not created on startup**  
+→ Check your DB credentials. JPA will log the error. Make sure the Supabase project is active (free projects pause after 1 week of inactivity).
+
+**Duplicate design name error on stock create**  
+→ Each design name must be unique within a category. Use a different name or different category.

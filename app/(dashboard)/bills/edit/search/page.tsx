@@ -12,6 +12,7 @@ import { Trash2, Edit, AlertCircle, Save, Search, FileText, User, Phone } from "
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NavigationHeader } from "@/components/layout/navigation-header"
+import { API_BASE } from "@/lib/api"
 
 interface CartItem {
   id: string
@@ -31,7 +32,6 @@ interface BillSuggestion {
 
 export default function EditBillPage() {
   const router = useRouter()
-  const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"
 
   // ── Search form state ────────────────────────────────────────────────────
   const [showSearchForm, setShowSearchForm] = useState(true)
@@ -85,7 +85,7 @@ export default function EditBillPage() {
     const timer = setTimeout(async () => {
       setIsLoadingSuggestions(true)
       try {
-        const res = await fetch(`${API}/bills/search?q=${encodeURIComponent(query)}`)
+        const res = await fetch(`${API_BASE}/bills/search?q=${encodeURIComponent(query)}`)
         if (res.ok) {
           const bills: any[] = await res.json()
           const mapped = bills.slice(0, 6).map((b) => ({
@@ -111,7 +111,7 @@ export default function EditBillPage() {
     setSearchError("")
     setIsSearching(true)
     try {
-      const res = await fetch(`${API}/bills/number/${encodeURIComponent(billNumber.trim())}`)
+      const res = await fetch(`${API_BASE}/bills/number/${encodeURIComponent(billNumber.trim())}`)
       if (!res.ok) {
         setSearchError(`Bill "${billNumber}" not found. Check and try again.`)
         return
@@ -170,7 +170,7 @@ export default function EditBillPage() {
     setIsSearching(true)
     setSearchError("")
     try {
-      const res = await fetch(`${API}/bills/search?q=${encodeURIComponent(query.trim())}`)
+      const res = await fetch(`${API_BASE}/bills/search?q=${encodeURIComponent(query.trim())}`)
       const bills: any[] = res.ok ? await res.json() : []
       if (bills.length === 0) {
         setSearchError("No bills found. Try a different search.")
@@ -229,7 +229,7 @@ export default function EditBillPage() {
     setIsSaving(true)
     setSaveSuccess("")
     try {
-      const res = await fetch(`${API}/bills/${billData.bill_number}`, {
+      const res = await fetch(`${API_BASE}/bills/${billData.bill_number}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

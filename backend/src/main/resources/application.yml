@@ -3,13 +3,14 @@ spring:
     name: tiles-sanitary-backend
 
   datasource:
-    url: jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
+    url: jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
     username: postgres.recnnsniwonmtoutfyqt
-    password: PmwnTXD7FNKat9ZF
+    password: gorthipranay
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 30000
-      maximum-pool-size: 5
+      maximum-pool-size: 2
+      minimum-idle: 1
 
   sql:
     init:
@@ -18,28 +19,33 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false
         jdbc:
           lob:
             non_contextual_creation: true
 
   jackson:
     serialization:
-      indent-output: true
+      indent-output: false
       write-dates-as-timestamps: false
     default-property-inclusion: non_null
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /api
 
 logging:
   level:
     root: INFO
-    com.inventory: DEBUG
+    com.inventory: INFO
+
+# CORS — override with env var CORS_ALLOWED_ORIGINS for production
+# e.g. CORS_ALLOWED_ORIGINS=https://your-app.vercel.app
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
