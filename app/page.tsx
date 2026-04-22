@@ -17,7 +17,7 @@ import {
   Zap,
   Target,
 } from "lucide-react"
-import { CategorySelector } from "@/components/layout/category-selector"
+
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { Button } from "@/components/ui/button"
 
@@ -155,13 +155,10 @@ export default function HomePage() {
                 {today.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <CategorySelector />
-              <Button onClick={() => router.push("/sales")} size="sm">
-                <Zap className="mr-2 h-4 w-4" />
-                Quick Sale
-              </Button>
-            </div>
+            <Button onClick={() => router.push("/sales")} size="sm">
+              <Zap className="mr-2 h-4 w-4" />
+              Quick Sale
+            </Button>
           </div>
         </header>
 
