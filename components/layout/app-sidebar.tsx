@@ -16,6 +16,8 @@ import {
   Settings,
   Bell,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -81,6 +83,20 @@ export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname()
   const [theme, setTheme] = useState<"light" | "dark">("light")
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    const savedCollapsed = localStorage.getItem("sidebar-collapsed")
+    if (savedCollapsed === "true") {
+      setCollapsed(true)
+    }
+  }, [])
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    localStorage.setItem("sidebar-collapsed", String(next))
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") as "light" | "dark" | null
@@ -104,24 +120,28 @@ export function AppSidebar({ children }: AppSidebarProps) {
     }
   }
 
-  const SidebarContent = () => (
+  const SidebarContent = ({ isCollapsed = false, isMobile = false }: { isCollapsed?: boolean; isMobile?: boolean }) => (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
+      <div className={cn("flex items-center gap-3 py-5", isCollapsed && !isMobile ? "justify-center px-2" : "px-5")}>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary">
           <Package className="h-5 w-5 text-primary-foreground" />
         </div>
-        <div>
-          <h1 className="text-base font-semibold tracking-tight text-foreground">StockFlow</h1>
-          <p className="text-[11px] font-medium text-muted-foreground">Business Suite</p>
-        </div>
+        {(!isCollapsed || isMobile) && (
+          <div>
+            <h1 className="text-base font-semibold tracking-tight text-foreground">StockFlow</h1>
+            <p className="text-[11px] font-medium text-muted-foreground">Business Suite</p>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Menu
-        </p>
+      <nav className={cn("flex-1 space-y-1 py-2", isCollapsed && !isMobile ? "px-2" : "px-3")}>
+        {(!isCollapsed || isMobile) && (
+          <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Menu
+          </p>
+        )}
         {navigationItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -130,34 +150,43 @@ export function AppSidebar({ children }: AppSidebarProps) {
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
+              title={isCollapsed && !isMobile ? item.title : undefined}
               className={cn(
-                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
+                "group flex items-center gap-3 rounded-lg text-sm transition-all duration-200",
+                isCollapsed && !isMobile ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
-              <Icon className={cn("h-[18px] w-[18px]", isActive ? "" : "text-muted-foreground group-hover:text-foreground")} />
-              <span className="font-medium">{item.title}</span>
-              {isActive && <ChevronRight className="ml-auto h-4 w-4 opacity-70" />}
+              <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "" : "text-muted-foreground group-hover:text-foreground")} />
+              {(!isCollapsed || isMobile) && <span className="font-medium">{item.title}</span>}
+              {isActive && (!isCollapsed || isMobile) && <ChevronRight className="ml-auto h-4 w-4 opacity-70" />}
             </Link>
           )
         })}
       </nav>
 
       {/* Footer */}
-      <div className="border-t px-3 py-3">
-        <div className="flex items-center gap-2">
+      <div className={cn("border-t py-3", isCollapsed && !isMobile ? "px-2" : "px-3")}>
+        <div className={cn("flex items-center", isCollapsed && !isMobile ? "flex-col gap-2" : "gap-2")}>
           <button
             onClick={toggleTheme}
+            title={theme === "light" ? "Dark mode" : "Light mode"}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             {theme === "light" ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+          <button 
+            title="Notifications"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
             <Bell className="h-[18px] w-[18px]" />
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+          <button 
+            title="Settings"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
             <Settings className="h-[18px] w-[18px]" />
           </button>
         </div>
@@ -168,8 +197,21 @@ export function AppSidebar({ children }: AppSidebarProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 border-r bg-card md:block">
-        <SidebarContent />
+      <aside 
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 hidden border-r bg-card md:block transition-all duration-300",
+          collapsed ? "w-16" : "w-60"
+        )}
+      >
+        <SidebarContent isCollapsed={collapsed} />
+        {/* Toggle Button */}
+        <button
+          onClick={toggleCollapsed}
+          className="absolute -right-3 top-7 flex h-6 w-6 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-sm hover:bg-secondary hover:text-foreground transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeft className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+        </button>
       </aside>
 
       {/* Mobile Header */}
@@ -185,7 +227,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
             <SheetHeader className="sr-only">
               <SheetTitle>Navigation Menu</SheetTitle>
             </SheetHeader>
-            <SidebarContent />
+            <SidebarContent isMobile />
           </SheetContent>
         </Sheet>
         <div className="flex items-center gap-2">
@@ -205,7 +247,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
       </header>
 
       {/* Main Content */}
-      <main className="md:pl-60">
+      <main className={cn("transition-all duration-300", collapsed ? "md:pl-16" : "md:pl-60")}>
         {children}
       </main>
     </div>
