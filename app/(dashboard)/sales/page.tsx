@@ -5,14 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Plus,
@@ -21,16 +13,17 @@ import {
   Eye,
   AlertCircle,
   Search,
-  Printer,
   ShoppingCart,
   Package,
-  Receipt,
   User,
   Phone,
   Hash,
-  ChevronRight,
   X,
   Check,
+  Minus,
+  FileText,
+  ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -312,46 +305,56 @@ export default function NewSalePage() {
       const win = window.open("", "_blank");
       if (win) {
         const html = `
-          <div style="font-family:Arial,sans-serif; padding:32px; max-width:620px; margin:0 auto; border:1px solid #e0e0e0;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;">
-              <div>
-                <h2 style="margin:0; font-size:22px;">INVOICE</h2>
-                <p style="margin:4px 0 0; color:#555; font-size:13px;">Bill No: <strong>${bill.billNumber}</strong></p>
-              </div>
-              <div style="text-align:right; font-size:13px; color:#555;">
-                <p style="margin:0;">Date: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
-              </div>
+          <div style="font-family:system-ui,-apple-system,sans-serif; padding:40px; max-width:600px; margin:0 auto;">
+            <div style="border-bottom:2px solid #0f172a; padding-bottom:20px; margin-bottom:24px;">
+              <h1 style="margin:0; font-size:28px; font-weight:700; color:#0f172a;">INVOICE</h1>
+              <p style="margin:8px 0 0; color:#64748b; font-size:14px;">Bill No: <span style="color:#0f172a; font-weight:600;">${bill.billNumber}</span></p>
+              <p style="margin:4px 0 0; color:#64748b; font-size:14px;">Date: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</p>
             </div>
-            <div style="margin-bottom:16px; font-size:14px;">
-              <p style="margin:0;"><strong>Customer:</strong> ${bill.customerName}</p>
-              <p style="margin:4px 0 0;"><strong>Phone:</strong> ${bill.customerPhone}</p>
+            <div style="background:#f8fafc; border-radius:12px; padding:20px; margin-bottom:24px;">
+              <p style="margin:0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b;">Bill To</p>
+              <p style="margin:8px 0 0; font-size:18px; font-weight:600; color:#0f172a;">${bill.customerName}</p>
+              <p style="margin:4px 0 0; color:#64748b;">${bill.customerPhone}</p>
             </div>
-            <table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-bottom:16px;">
-              <thead style="background:#f5f5f5;">
-                <tr>
-                  <th style="text-align:left;">Design</th><th style="text-align:right;">Boxes</th>
-                  <th style="text-align:right;">Price/Box</th><th style="text-align:right;">Total</th>
+            <table width="100%" style="border-collapse:collapse; margin-bottom:24px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="text-align:left; padding:12px 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b;">Item</th>
+                  <th style="text-align:center; padding:12px 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b;">Qty</th>
+                  <th style="text-align:right; padding:12px 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b;">Rate</th>
+                  <th style="text-align:right; padding:12px 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b;">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 ${bill.items.map((item) => `
-                  <tr>
-                    <td>${item.design_name} (${item.size} • ${item.type})</td>
-                    <td style="text-align:right;">${item.boxes}</td>
-                    <td style="text-align:right;">₹${item.price}</td>
-                    <td style="text-align:right;">₹${item.total.toLocaleString("en-IN")}</td>
+                  <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:16px 0;">
+                      <p style="margin:0; font-weight:500; color:#0f172a;">${item.design_name}</p>
+                      <p style="margin:4px 0 0; font-size:13px; color:#64748b;">${item.size} | ${item.type}</p>
+                    </td>
+                    <td style="text-align:center; padding:16px 0; color:#0f172a;">${item.boxes}</td>
+                    <td style="text-align:right; padding:16px 0; color:#0f172a;">₹${item.price}</td>
+                    <td style="text-align:right; padding:16px 0; font-weight:600; color:#0f172a;">₹${item.total.toLocaleString("en-IN")}</td>
                   </tr>`).join("")}
               </tbody>
             </table>
-            <div style="text-align:right; font-size:14px;">
-              <p style="margin:4px 0;">Subtotal: ₹${bill.subtotal.toLocaleString("en-IN")}</p>
-              ${bill.gstAmount > 0 ? `<p style="margin:4px 0;">GST (${bill.gstRate}%): ₹${bill.gstAmount.toLocaleString("en-IN")}</p>` : ""}
-              <p style="margin:8px 0 0; font-size:17px; font-weight:bold; border-top:1px solid #111; padding-top:8px;">
-                Total: ₹${bill.grandTotal.toLocaleString("en-IN")}
-              </p>
+            <div style="border-top:2px solid #e2e8f0; padding-top:16px;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span style="color:#64748b;">Subtotal</span>
+                <span style="color:#0f172a;">₹${bill.subtotal.toLocaleString("en-IN")}</span>
+              </div>
+              ${bill.gstAmount > 0 ? `
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                  <span style="color:#64748b;">GST (${bill.gstRate}%)</span>
+                  <span style="color:#0f172a;">₹${bill.gstAmount.toLocaleString("en-IN")}</span>
+                </div>` : ""}
+              <div style="display:flex; justify-content:space-between; margin-top:16px; padding-top:16px; border-top:2px solid #0f172a;">
+                <span style="font-size:18px; font-weight:700; color:#0f172a;">Total</span>
+                <span style="font-size:24px; font-weight:700; color:#0f172a;">₹${bill.grandTotal.toLocaleString("en-IN")}</span>
+              </div>
             </div>
           </div>`;
-        win.document.write(`<html><head><title>Invoice ${bill.billNumber}</title><style>@media print{body{margin:0;}}</style></head><body style="background:#fff; padding:24px;">${html}</body></html>`);
+        win.document.write(`<html><head><title>Invoice ${bill.billNumber}</title><style>@media print{@page{margin:0.5in;}}</style></head><body style="margin:0;padding:0;">${html}</body></html>`);
         win.document.close();
         setTimeout(() => win.print(), 300);
       }
@@ -377,12 +380,17 @@ export default function NewSalePage() {
     }
   }
 
+  const totalBoxes = cartItems.reduce((sum, item) => sum + item.boxes, 0);
+
   if (loading) {
     return (
       <AppSidebar>
         <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="h-12 w-12 rounded-full border-4 border-secondary" />
+              <div className="absolute inset-0 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
             <p className="text-sm text-muted-foreground">Loading inventory...</p>
           </div>
         </div>
@@ -393,266 +401,262 @@ export default function NewSalePage() {
   return (
     <AppSidebar>
       <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-          <div className="px-6 py-4">
+        {/* Clean Header */}
+        <header className="border-b bg-card">
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-                  <Receipt className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold tracking-tight text-foreground">Create Sale</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Selling from <span className="font-medium text-primary">{selectedCategory}</span>
-                  </p>
-                </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">New Sale</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Create invoice for <span className="text-primary font-medium">{selectedCategory}</span>
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => router.push("/bills")}>
-                  View All Bills
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={() => router.push("/bills")} className="hidden sm:flex">
+                <FileText className="mr-2 h-4 w-4" />
+                View Bills
+              </Button>
             </div>
           </div>
         </header>
 
-        <main className="p-6">
-          <div className="mx-auto max-w-7xl">
+        <main className="p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-6xl">
             {/* Success Message */}
             {saleSuccessMessage && (
-              <div className="mb-6 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <div className="mb-6 flex items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 p-4">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent">
                   <Check className="h-4 w-4 text-accent-foreground" />
                 </div>
-                <p className="font-medium text-accent">{saleSuccessMessage}</p>
+                <p className="font-medium text-foreground">{saleSuccessMessage}</p>
               </div>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Left Column - Customer & Products */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Customer Information Card */}
-                <div className="rounded-2xl border bg-card overflow-hidden">
-                  <div className="border-b bg-secondary/30 px-5 py-4">
-                    <h2 className="font-semibold text-foreground flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      Customer Information
-                    </h2>
+            <div className="grid gap-6 lg:grid-cols-5">
+              {/* Left Column - Forms */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* Customer & Bill Info */}
+                <div className="rounded-xl border bg-card p-5 sm:p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                    <h2 className="font-semibold text-foreground">Customer Details</h2>
                   </div>
-                  <div className="p-5">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="bill_number" className="text-sm flex items-center gap-2">
-                          <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                          Bill Number
-                        </Label>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="bill_number" className="text-sm text-muted-foreground">
+                        Bill Number
+                      </Label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                         <Input
                           id="bill_number"
                           placeholder="INV-001"
                           value={billNumber}
                           onChange={(e) => handleBillNumberChange(e.target.value)}
-                          className="font-mono"
+                          className="pl-9 font-mono"
                         />
-                        {billNumberError && (
-                          <p className="text-xs text-destructive flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {billNumberError}
-                          </p>
-                        )}
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="customer_name" className="text-sm flex items-center gap-2">
-                          <User className="h-3.5 w-3.5 text-muted-foreground" />
-                          Customer Name
-                        </Label>
+                      {billNumberError && (
+                        <p className="text-xs text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {billNumberError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customer_name" className="text-sm text-muted-foreground">
+                        Customer Name
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                         <Input
                           id="customer_name"
-                          placeholder="Enter name"
+                          placeholder="John Doe"
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
+                          className="pl-9"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="customer_phone" className="text-sm flex items-center gap-2">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          Phone Number
-                        </Label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customer_phone" className="text-sm text-muted-foreground">
+                        Phone Number
+                      </Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                         <Input
                           id="customer_phone"
                           placeholder="+91 98765 43210"
                           value={customerPhone}
                           onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="pl-9"
                         />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Product Search Card */}
-                <div className="rounded-2xl border bg-card overflow-hidden">
-                  <div className="border-b bg-secondary/30 px-5 py-4">
-                    <h2 className="font-semibold text-foreground flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      Add Products
-                    </h2>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    {/* Search */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by design name..."
-                        className="pl-10"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
+                {/* Product Search */}
+                <div className="rounded-xl border bg-card p-5 sm:p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <Package className="h-4 w-4 text-primary" />
                     </div>
+                    <h2 className="font-semibold text-foreground">Add Products</h2>
+                  </div>
 
-                    {/* Search Results */}
-                    {searchQuery && filteredStocks.length > 0 && (
-                      <div className="rounded-xl border bg-background max-h-48 overflow-y-auto divide-y">
-                        {filteredStocks.map((stock) => (
-                          <button
-                            key={stock.id}
-                            className="w-full flex items-center justify-between p-3 text-left hover:bg-secondary/50 transition-colors"
-                            onClick={() => handleStockSelect(stock)}
-                          >
+                  {/* Search Input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search products by design name..."
+                      className="pl-10 h-11"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Search Results */}
+                  {searchQuery && filteredStocks.length > 0 && (
+                    <div className="mt-3 rounded-lg border bg-background max-h-56 overflow-y-auto">
+                      {filteredStocks.map((stock, index) => (
+                        <button
+                          key={stock.id}
+                          className={`w-full flex items-center justify-between p-3 text-left hover:bg-secondary/50 transition-colors ${index !== 0 ? "border-t" : ""}`}
+                          onClick={() => handleStockSelect(stock)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            </div>
                             <div>
-                              <p className="font-medium text-sm text-foreground">{stock.designName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {stock.size} • {stock.type}
-                              </p>
+                              <p className="font-medium text-foreground">{stock.designName}</p>
+                              <p className="text-xs text-muted-foreground">{stock.size} | {stock.type}</p>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-foreground">
-                                {stock.noOfBoxes ?? stock.totalBoxes} boxes
-                              </p>
-                              {(stock.pricePerBox ?? stock.price ?? 0) > 0 && (
-                                <p className="text-xs text-muted-foreground">
-                                  ₹{stock.pricePerBox ?? stock.price}/box
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-foreground">
+                              {stock.noOfBoxes ?? stock.totalBoxes} <span className="text-muted-foreground font-normal">boxes</span>
+                            </p>
+                            {(stock.pricePerBox ?? stock.price ?? 0) > 0 && (
+                              <p className="text-xs text-muted-foreground">₹{stock.pricePerBox ?? stock.price}/box</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                    {searchQuery && filteredStocks.length === 0 && (
-                      <div className="rounded-xl border border-dashed bg-secondary/20 p-6 text-center">
-                        <Package className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                        <p className="mt-2 text-sm text-muted-foreground">No products found</p>
-                      </div>
-                    )}
+                  {searchQuery && filteredStocks.length === 0 && (
+                    <div className="mt-3 rounded-lg border border-dashed bg-secondary/20 p-8 text-center">
+                      <Package className="mx-auto h-10 w-10 text-muted-foreground/30" />
+                      <p className="mt-3 text-sm font-medium text-muted-foreground">No products found</p>
+                      <p className="text-xs text-muted-foreground/70">Try a different search term</p>
+                    </div>
+                  )}
 
-                    {/* Selected Product */}
-                    {selectedStock && (
-                      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-4">
-                        <div className="flex items-start justify-between">
+                  {/* Selected Product Card */}
+                  {selectedStock && (
+                    <div className="mt-4 rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                            <Sparkles className="h-6 w-6 text-primary" />
+                          </div>
                           <div>
                             <p className="font-semibold text-foreground">{selectedStock.designName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {selectedStock.size} • {selectedStock.type} • {selectedStock.noOfBoxes ?? selectedStock.totalBoxes} available
+                              {selectedStock.size} | {selectedStock.type} | <span className="text-primary font-medium">{selectedStock.noOfBoxes ?? selectedStock.totalBoxes} available</span>
                             </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 -mr-2 -mt-2"
-                            onClick={() => setSelectedStock(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Quantity (Boxes)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={boxQuantity}
-                              onChange={(e) => setBoxQuantity(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Price per Box (₹)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={customPrice}
-                              onChange={(e) => setCustomPrice(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        {addToCartError && (
-                          <p className="text-sm text-destructive flex items-center gap-1">
-                            <AlertCircle className="h-3.5 w-3.5" />
-                            {addToCartError}
-                          </p>
-                        )}
-                        <Button onClick={handleAddToCart} className="w-full">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add to Cart
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 -mr-2 -mt-2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setSelectedStock(null)}
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    )}
-                  </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Quantity (Boxes)</Label>
+                          <Input
+                            type="number"
+                            placeholder="Enter quantity"
+                            value={boxQuantity}
+                            onChange={(e) => setBoxQuantity(e.target.value)}
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Price per Box (₹)</Label>
+                          <Input
+                            type="number"
+                            placeholder="Enter price"
+                            value={customPrice}
+                            onChange={(e) => setCustomPrice(e.target.value)}
+                            className="h-10"
+                          />
+                        </div>
+                      </div>
+                      {addToCartError && (
+                        <p className="mt-3 text-sm text-destructive flex items-center gap-1.5">
+                          <AlertCircle className="h-4 w-4" />
+                          {addToCartError}
+                        </p>
+                      )}
+                      <Button onClick={handleAddToCart} className="w-full mt-4 h-10">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add to Cart
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Cart */}
-                <div className="rounded-2xl border bg-card overflow-hidden">
+                {/* Cart Items */}
+                <div className="rounded-xl border bg-card overflow-hidden">
                   <div className="border-b bg-secondary/30 px-5 py-4 flex items-center justify-between">
-                    <h2 className="font-semibold text-foreground flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                      Cart
-                    </h2>
-                    <span className="text-sm text-muted-foreground">
-                      {cartItems.length} {cartItems.length === 1 ? "item" : "items"}
-                    </span>
+                      <h2 className="font-semibold text-foreground">Cart</h2>
+                    </div>
+                    {cartItems.length > 0 && (
+                      <span className="text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                        {cartItems.length} {cartItems.length === 1 ? "item" : "items"}
+                      </span>
+                    )}
                   </div>
+
                   {cartItems.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-                        <ShoppingCart className="h-7 w-7 text-muted-foreground" />
+                    <div className="p-10 text-center">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/50">
+                        <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
                       </div>
-                      <p className="mt-4 font-medium text-foreground">Cart is empty</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Search and add products above</p>
+                      <p className="mt-4 font-medium text-foreground">Your cart is empty</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Search and add products to get started</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="w-[45%]">Product</TableHead>
-                            <TableHead className="text-center">Qty</TableHead>
-                            <TableHead className="text-right">Price</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="w-[80px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {cartItems.map((item) => (
-                            <TableRow key={item.id} className="group">
-                              <TableCell>
-                                <p className="font-medium text-sm">{item.design_name}</p>
-                                <p className="text-xs text-muted-foreground">{item.size} • {item.type}</p>
-                              </TableCell>
-                              <TableCell className="text-center font-medium">{item.boxes}</TableCell>
-                              <TableCell className="text-right">
-                                <span className="font-medium">₹{item.price}</span>
-                                {gstEnabled && gstType === "INCLUSIVE" && baseCartPrices[item.id] && (
-                                  <p className="text-xs text-muted-foreground">incl. ₹{baseCartPrices[item.id]}</p>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold">₹{item.total.toLocaleString("en-IN")}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="divide-y">
+                      {cartItems.map((item) => (
+                        <div key={item.id} className="p-4 hover:bg-secondary/20 transition-colors group">
+                          <div className="flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-foreground">{item.design_name}</p>
+                                  <p className="text-xs text-muted-foreground">{item.size} | {item.type}</p>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8"
+                                    className="h-7 w-7"
                                     onClick={() => handleEditItem(item)}
                                   >
                                     <Edit className="h-3.5 w-3.5" />
@@ -660,27 +664,61 @@ export default function NewSalePage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                                     onClick={() => handleRemoveItem(item.id)}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                              </div>
+                              {editingItemId === item.id ? (
+                                <div className="mt-3 flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-xs text-muted-foreground">Qty:</Label>
+                                    <Input
+                                      type="number"
+                                      value={item.boxes}
+                                      onChange={(e) => handleUpdateItem(item.id, "boxes", e.target.value)}
+                                      className="w-20 h-8"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-xs text-muted-foreground">Price:</Label>
+                                    <Input
+                                      type="number"
+                                      value={item.price}
+                                      onChange={(e) => handleUpdateItem(item.id, "price", e.target.value)}
+                                      className="w-24 h-8"
+                                    />
+                                  </div>
+                                  <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingItemId(null)}>
+                                    Done
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="mt-2 flex items-center justify-between">
+                                  <div className="flex items-center gap-4 text-sm">
+                                    <span className="text-muted-foreground">
+                                      {item.boxes} {item.boxes === 1 ? "box" : "boxes"} × ₹{item.price}
+                                    </span>
+                                  </div>
+                                  <p className="font-semibold text-foreground">₹{item.total.toLocaleString("en-IN")}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Right Column - Bill Summary */}
-              <div className="lg:col-span-1">
-                <div className="rounded-2xl border bg-card overflow-hidden sticky top-24">
+              {/* Right Column - Summary */}
+              <div className="lg:col-span-2">
+                <div className="rounded-xl border bg-card overflow-hidden lg:sticky lg:top-6">
                   <div className="border-b bg-secondary/30 px-5 py-4">
-                    <h2 className="font-semibold text-foreground">Bill Summary</h2>
+                    <h2 className="font-semibold text-foreground">Order Summary</h2>
                   </div>
                   <div className="p-5 space-y-5">
                     {/* Validation Errors */}
@@ -688,27 +726,41 @@ export default function NewSalePage() {
                       <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                          <ul className="list-disc list-inside text-sm space-y-1">
+                          <ul className="list-disc list-inside text-sm space-y-0.5">
                             {validationErrors.map((error, index) => <li key={index}>{error}</li>)}
                           </ul>
                         </AlertDescription>
                       </Alert>
                     )}
 
-                    {/* Summary Details */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Items</span>
-                        <span className="font-medium">{cartItems.length}</span>
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-secondary/50 p-3">
+                        <p className="text-xs text-muted-foreground">Items</p>
+                        <p className="text-lg font-semibold text-foreground">{cartItems.length}</p>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Subtotal</span>
-                        <span className="font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                      <div className="rounded-lg bg-secondary/50 p-3">
+                        <p className="text-xs text-muted-foreground">Total Boxes</p>
+                        <p className="text-lg font-semibold text-foreground">{totalBoxes}</p>
                       </div>
                     </div>
 
-                    {/* GST Settings */}
-                    <div className="rounded-xl border bg-secondary/30 p-4 space-y-3">
+                    {/* Price Breakdown */}
+                    <div className="space-y-2 py-3 border-y">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="font-medium text-foreground">₹{subtotal.toLocaleString("en-IN")}</span>
+                      </div>
+                      {gstEnabled && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">GST ({gstRate}%)</span>
+                          <span className="font-medium text-foreground">₹{gstAmount.toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GST Toggle */}
+                    <div className="rounded-lg bg-secondary/30 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="gst_toggle" className="text-sm font-medium cursor-pointer">
                           Apply GST
@@ -719,11 +771,10 @@ export default function NewSalePage() {
                           onCheckedChange={(val) => { setGstEnabled(val); if (!val) setGstType("EXCLUSIVE"); }}
                         />
                       </div>
-
                       {gstEnabled && (
-                        <div className="space-y-3 pt-2 border-t">
+                        <div className="space-y-3 pt-3 border-t">
                           <div className="space-y-1.5">
-                            <Label className="text-xs">GST Rate (%)</Label>
+                            <Label className="text-xs text-muted-foreground">GST Rate (%)</Label>
                             <Input
                               type="number"
                               value={gstRate}
@@ -734,55 +785,47 @@ export default function NewSalePage() {
                           <RadioGroup
                             value={gstType}
                             onValueChange={(v) => setGstType(v as "EXCLUSIVE" | "INCLUSIVE")}
-                            className="space-y-2"
+                            className="flex gap-4"
                           >
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="EXCLUSIVE" id="exclusive" />
-                              <Label htmlFor="exclusive" className="text-sm cursor-pointer">
-                                Exclusive (add on top)
-                              </Label>
+                              <Label htmlFor="exclusive" className="text-sm cursor-pointer">Exclusive</Label>
                             </div>
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="INCLUSIVE" id="inclusive" />
-                              <Label htmlFor="inclusive" className="text-sm cursor-pointer">
-                                Inclusive (GST in price)
-                              </Label>
+                              <Label htmlFor="inclusive" className="text-sm cursor-pointer">Inclusive</Label>
                             </div>
                           </RadioGroup>
-                          <div className="flex justify-between text-sm pt-2 border-t">
-                            <span className="text-muted-foreground">GST ({gstRate}%)</span>
-                            <span className="font-medium">₹{gstAmount.toLocaleString("en-IN")}</span>
-                          </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Total */}
-                    <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
+                    {/* Grand Total */}
+                    <div className="rounded-lg bg-primary p-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-foreground">Total</span>
-                        <span className="text-2xl font-bold text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
+                        <span className="font-semibold text-primary-foreground">Grand Total</span>
+                        <span className="text-2xl font-bold text-primary-foreground">₹{grandTotal.toLocaleString("en-IN")}</span>
                       </div>
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="space-y-2 pt-2">
+                    <div className="space-y-2">
                       <Button
                         onClick={() => setViewBillOpen(true)}
                         variant="outline"
-                        className="w-full"
+                        className="w-full h-10"
                         disabled={cartItems.length === 0}
                       >
                         <Eye className="mr-2 h-4 w-4" />
-                        Preview Bill
+                        Preview Invoice
                       </Button>
                       <Button
                         onClick={handleCompleteSale}
-                        className="w-full"
+                        className="w-full h-11"
                         disabled={cartItems.length === 0}
                       >
-                        <Check className="mr-2 h-4 w-4" />
                         Complete Sale
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -794,77 +837,88 @@ export default function NewSalePage() {
 
         {/* Bill Preview Dialog */}
         <Dialog open={viewBillOpen} onOpenChange={setViewBillOpen}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Bill Preview</DialogTitle>
-              <DialogDescription>Review the bill before completing the sale</DialogDescription>
+              <DialogTitle className="text-xl">Invoice Preview</DialogTitle>
+              <DialogDescription>Review before completing the sale</DialogDescription>
             </DialogHeader>
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Bill Number</p>
-                  <p className="font-medium font-mono">{billNumber || "Not entered"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Date</p>
-                  <p className="font-medium">{new Date().toLocaleDateString("en-IN")}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Customer Name</p>
-                  <p className="font-medium">{customerName || "Not entered"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Phone Number</p>
-                  <p className="font-medium">{customerPhone || "Not entered"}</p>
+            <div className="space-y-6 pt-2">
+              {/* Customer Info */}
+              <div className="rounded-lg bg-secondary/30 p-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Bill Number</p>
+                    <p className="font-semibold font-mono mt-1">{billNumber || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p>
+                    <p className="font-semibold mt-1">{new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p>
+                    <p className="font-semibold mt-1">{customerName || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p>
+                    <p className="font-semibold mt-1">{customerPhone || "—"}</p>
+                  </div>
                 </div>
               </div>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="text-center">Boxes</TableHead>
-                      <TableHead className="text-right">Price/Box</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+
+              {/* Items */}
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Item</th>
+                      <th className="text-center p-3 font-medium text-muted-foreground">Qty</th>
+                      <th className="text-right p-3 font-medium text-muted-foreground">Rate</th>
+                      <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
                     {cartItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
+                      <tr key={item.id}>
+                        <td className="p-3">
                           <p className="font-medium">{item.design_name}</p>
-                          <p className="text-xs text-muted-foreground">{item.size} • {item.type}</p>
-                        </TableCell>
-                        <TableCell className="text-center">{item.boxes}</TableCell>
-                        <TableCell className="text-right">₹{baseCartPrices[item.id] ?? item.price}</TableCell>
-                        <TableCell className="text-right font-medium">₹{item.total.toLocaleString("en-IN")}</TableCell>
-                      </TableRow>
+                          <p className="text-xs text-muted-foreground">{item.size} | {item.type}</p>
+                        </td>
+                        <td className="p-3 text-center">{item.boxes}</td>
+                        <td className="p-3 text-right">₹{baseCartPrices[item.id] ?? item.price}</td>
+                        <td className="p-3 text-right font-semibold">₹{item.total.toLocaleString("en-IN")}</td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               </div>
+
+              {/* Totals */}
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
+                <div className="flex justify-between py-2">
+                  <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
                 </div>
                 {gstEnabled && (
-                  <div className="flex justify-between">
-                    <span>GST ({gstRate}% {gstType}):</span>
+                  <div className="flex justify-between py-2">
+                    <span className="text-muted-foreground">GST ({gstRate}% {gstType})</span>
                     <span className="font-medium">₹{gstAmount.toLocaleString("en-IN")}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                  <span>Grand Total:</span>
-                  <span className="text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
+                <div className="flex justify-between py-3 border-t-2 border-foreground/10">
+                  <span className="text-lg font-bold">Grand Total</span>
+                  <span className="text-xl font-bold text-primary">₹{grandTotal.toLocaleString("en-IN")}</span>
                 </div>
               </div>
-              <div className="flex gap-3">
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
                 <Button onClick={() => setViewBillOpen(false)} variant="outline" className="flex-1">
+                  <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
                 <Button onClick={handleCompleteSale} className="flex-1">
-                  Confirm & Complete
+                  <Check className="mr-2 h-4 w-4" />
+                  Confirm Sale
                 </Button>
               </div>
             </div>
@@ -873,67 +927,32 @@ export default function NewSalePage() {
 
         {/* Print Dialog */}
         <Dialog open={printAfterSaleOpen} onOpenChange={(open) => { if (!open) { setPrintAfterSaleOpen(false); setCompletedBillData(null); } }}>
-          <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-accent" />
-                Sale Complete — Bill {completedBillData?.billNumber}
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+                  <Check className="h-4 w-4 text-accent-foreground" />
+                </div>
+                Sale Complete
               </DialogTitle>
-              <DialogDescription>Would you like to print this invoice?</DialogDescription>
+              <DialogDescription>
+                Bill <span className="font-semibold font-mono">{completedBillData?.billNumber}</span> has been saved successfully.
+              </DialogDescription>
             </DialogHeader>
-
-            {completedBillData && (
-              <div className="border rounded-lg p-4 text-sm space-y-4">
-                <div className="flex justify-between items-start border-b pb-3">
-                  <div>
-                    <h3 className="text-lg font-bold">INVOICE</h3>
-                    <p className="text-xs text-muted-foreground">Bill No: <strong>{completedBillData.billNumber}</strong></p>
-                  </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <p>Date: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                  </div>
-                </div>
-                <div>
-                  <p><strong>Customer:</strong> {completedBillData.customerName}</p>
-                  <p><strong>Phone:</strong> {completedBillData.customerPhone}</p>
-                </div>
-                <table className="w-full text-xs">
-                  <thead className="bg-secondary">
-                    <tr>
-                      <th className="border p-2 text-left">Design</th>
-                      <th className="border p-2 text-right">Boxes</th>
-                      <th className="border p-2 text-right">Price/Box</th>
-                      <th className="border p-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {completedBillData.items.map((item, i) => (
-                      <tr key={i}>
-                        <td className="border p-2">{item.design_name} ({item.size})</td>
-                        <td className="border p-2 text-right">{item.boxes}</td>
-                        <td className="border p-2 text-right">₹{item.price}</td>
-                        <td className="border p-2 text-right">₹{item.total.toLocaleString("en-IN")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="text-right space-y-1">
-                  <p>Subtotal: ₹{completedBillData.subtotal.toLocaleString("en-IN")}</p>
-                  {completedBillData.gstAmount > 0 && (
-                    <p>GST ({completedBillData.gstRate}%): ₹{completedBillData.gstAmount.toLocaleString("en-IN")}</p>
-                  )}
-                  <p className="font-bold text-base border-t pt-2">Total: ₹{completedBillData.grandTotal.toLocaleString("en-IN")}</p>
-                </div>
+            <div className="py-4">
+              <div className="rounded-lg bg-secondary/30 p-4 text-center">
+                <p className="text-sm text-muted-foreground">Amount Collected</p>
+                <p className="text-3xl font-bold text-foreground mt-1">₹{completedBillData?.grandTotal.toLocaleString("en-IN")}</p>
+                <p className="text-sm text-muted-foreground mt-2">from {completedBillData?.customerName}</p>
               </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1" onClick={() => saveBillAndReset(false)}>
-                Close
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => saveBillAndReset(true)} className="w-full">
+                Print Invoice
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button className="flex-1" onClick={() => saveBillAndReset(true)}>
-                <Printer className="mr-2 h-4 w-4" />
-                Print Bill
+              <Button onClick={() => saveBillAndReset(false)} variant="outline" className="w-full">
+                Skip Printing
               </Button>
             </div>
           </DialogContent>
